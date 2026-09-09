@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { IconChevronLeft, IconChevronRight, IconInfo, IconPlay, IconStar } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { TmdbImage } from '@/components/media/tmdb-image'
 import { MEDIA_TYPE_LABELS } from '@/lib/constants'
@@ -9,7 +10,7 @@ import { usePrefersReducedMotion } from '@/lib/use-prefers-reduced-motion'
 import { cn, formatYear } from '@/lib/utils'
 import type { TmdbMedia } from '@/types'
 
-const ROTATE_MS = 8000
+const ROTATE_MS = 9000
 
 type LandingHeroProps = {
   items: TmdbMedia[]
@@ -19,11 +20,10 @@ export const LandingHero = ({ items }: LandingHeroProps) => {
   const reducedMotion = usePrefersReducedMotion()
   const slides = items.filter((item) => item.backdropPath).slice(0, 6)
   const [active, setActive] = useState(0)
-  const [paused, setPaused] = useState(false)
 
   const current = slides[active] ?? items[0] ?? null
   const canRotate = slides.length > 1
-  const autoRotate = canRotate && !reducedMotion && !paused
+  const autoRotate = canRotate && !reducedMotion
 
   useEffect(() => {
     if (!autoRotate) return
@@ -46,16 +46,20 @@ export const LandingHero = ({ items }: LandingHeroProps) => {
 
   if (!current) {
     return (
-      <section className="relative -mt-16 min-h-[88vh] overflow-hidden bg-surface">
-        <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/40 to-bg/60" />
-        <div className="relative mx-auto flex min-h-[88vh] w-full max-w-[1400px] flex-col justify-end px-4 pb-24 pt-36 sm:px-8">
-          <h1 className="max-w-2xl font-display text-5xl font-bold tracking-tight sm:text-7xl">
-            Sua lista. Seu ritmo.
+      <section className="relative -mt-16 min-h-[92vh] overflow-hidden bg-surface">
+        <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/50 to-bg/70" />
+        <div className="relative mx-auto flex min-h-[92vh] w-full max-w-[1400px] flex-col justify-end px-4 pb-28 pt-36 sm:px-8">
+          <h1 className="max-w-2xl font-display text-5xl font-extrabold tracking-tight sm:text-7xl">
+            Filmes, séries e a sua lista.
           </h1>
+          <p className="mt-4 max-w-lg text-base text-mute">
+            Assista o que está em alta e acompanhe o que você já começou.
+          </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/register">
               <Button variant="light" size="lg">
-                Começar agora
+                <IconPlay className="size-5" />
+                Assista agora
               </Button>
             </Link>
             <Link href="/login">
@@ -72,10 +76,12 @@ export const LandingHero = ({ items }: LandingHeroProps) => {
   const registerHref = `/register?next=${encodeURIComponent(
     `/title/${current.mediaType.toLowerCase()}/${current.id}`,
   )}`
+  const year = formatYear(current.releaseDate)
+  const match = Math.round(current.voteAverage * 10)
 
   return (
     <section
-      className="relative -mt-16 min-h-[88vh] overflow-hidden"
+      className="relative -mt-16 min-h-[92vh] overflow-hidden sm:min-h-[96vh]"
       aria-roledescription="carrossel"
       aria-label="Títulos em destaque"
     >
@@ -96,54 +102,82 @@ export const LandingHero = ({ items }: LandingHeroProps) => {
             priority={index === 0}
             sizes="100vw"
             imgClassName={cn(
-              'object-top',
+              'object-cover object-top',
               index === active && 'hero-kenburns',
-              paused && 'is-paused',
             )}
           />
         </div>
       ))}
 
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-bg via-bg/75 to-bg/10" />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-bg via-bg/20 to-black/50" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-bg from-10% via-bg/80 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-bg via-bg/25 to-black/45" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-bg to-transparent" />
 
-      <div className="relative mx-auto flex min-h-[88vh] w-full max-w-[1400px] flex-col justify-end px-4 pb-28 pt-36 sm:px-8 sm:pb-32">
-        <div key={`${current.mediaType}-${current.id}`} className="hero-copy-in">
-          <p className="text-sm text-mute">
-            {MEDIA_TYPE_LABELS[current.mediaType]}
-            {formatYear(current.releaseDate)
-              ? ` · ${formatYear(current.releaseDate)}`
-              : ''}
-            {` · ${current.voteAverage.toFixed(1)}`}
-          </p>
-          <h1 className="mt-3 max-w-3xl font-display text-4xl font-bold leading-none tracking-tight sm:text-6xl md:text-7xl">
+      {canRotate ? (
+        <>
+          <button
+            type="button"
+            aria-label="Título anterior"
+            onClick={() => handleStep(-1)}
+            className="absolute left-2 top-1/2 z-20 hidden size-12 -translate-y-1/2 items-center justify-center text-white/70 transition hover:text-white md:flex"
+          >
+            <IconChevronLeft className="size-9" />
+          </button>
+          <button
+            type="button"
+            aria-label="Próximo título"
+            onClick={() => handleStep(1)}
+            className="absolute right-2 top-1/2 z-20 hidden size-12 -translate-y-1/2 items-center justify-center text-white/70 transition hover:text-white md:flex"
+          >
+            <IconChevronRight className="size-9" />
+          </button>
+        </>
+      ) : null}
+
+      <div className="relative mx-auto flex min-h-[92vh] w-full max-w-[1400px] flex-col justify-end px-4 pb-24 pt-36 sm:min-h-[96vh] sm:px-8 sm:pb-28">
+        <div key={`${current.mediaType}-${current.id}`} className="hero-copy-in max-w-2xl">
+          <h1 className="font-display text-[clamp(2.6rem,8vw,5.5rem)] font-extrabold leading-[0.92] tracking-tight drop-shadow-[0_8px_28px_rgba(0,0,0,0.65)]">
             {current.title}
           </h1>
-          <p className="mt-4 max-w-xl text-sm leading-relaxed text-ink/90 sm:text-base line-clamp-3 sm:line-clamp-4">
+
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            {match > 0 ? (
+              <span className="font-semibold text-ok">{match}% relevante</span>
+            ) : null}
+            {year ? <span className="text-mute">{year}</span> : null}
+            <span className="rounded-sm border border-white/35 px-1.5 py-0.5 text-[11px] font-medium text-ink">
+              {MEDIA_TYPE_LABELS[current.mediaType]}
+            </span>
+            {current.voteAverage > 0 ? (
+              <span className="inline-flex items-center gap-1 text-spot">
+                <IconStar className="size-3.5" />
+                {current.voteAverage.toFixed(1)}
+              </span>
+            ) : null}
+          </div>
+
+          <p className="mt-4 max-w-xl text-sm leading-relaxed text-ink/90 sm:text-lg line-clamp-3">
             {current.overview || 'Sinopse indisponível.'}
           </p>
         </div>
 
         <div className="mt-7 flex flex-wrap items-center gap-3">
           <Link href={registerHref}>
-            <Button variant="light" size="lg">
-              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                <path fill="currentColor" d="M8 5v14l11-7z" />
-              </svg>
-              Começar agora
+            <Button variant="light" size="lg" className="h-12 min-w-[10rem] px-7 text-base">
+              <IconPlay className="size-5" />
+              Assista agora
             </Button>
           </Link>
-          <Link href="/login">
-            <Button variant="secondary" size="lg">
-              Entrar
+          <Link href={registerHref}>
+            <Button variant="secondary" size="lg" className="h-12 px-6 text-base">
+              <IconInfo className="size-5" />
+              Mais informações
             </Button>
           </Link>
         </div>
-      </div>
 
-      {canRotate ? (
-        <div className="absolute bottom-8 left-4 right-4 z-10 flex items-center justify-between gap-3 sm:left-8 sm:right-8">
-          <div className="flex items-center gap-1">
+        {canRotate ? (
+          <div className="mt-8 flex items-center gap-1">
             {slides.map((item, index) => (
               <button
                 key={`${item.mediaType}-${item.id}-dot`}
@@ -151,66 +185,28 @@ export const LandingHero = ({ items }: LandingHeroProps) => {
                 aria-label={`Mostrar ${item.title}`}
                 aria-current={index === active}
                 onClick={() => handleSelect(index)}
-                className="flex h-11 w-8 items-center justify-center"
+                className="flex h-11 items-center px-1"
               >
                 <span
                   className={cn(
-                    'block h-1.5 rounded-full transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
-                    index === active ? 'w-5 bg-ink' : 'w-1.5 bg-white/40',
+                    'relative block h-[3px] overflow-hidden rounded-full bg-white/35',
+                    index === active ? 'w-8' : 'w-3',
                   )}
-                />
+                >
+                  {index === active && autoRotate ? (
+                    <span
+                      key={active}
+                      className="hero-progress absolute inset-y-0 left-0 w-full origin-left bg-ink"
+                    />
+                  ) : index === active ? (
+                    <span className="absolute inset-0 bg-ink" />
+                  ) : null}
+                </span>
               </button>
             ))}
           </div>
-
-          <div className="flex items-center gap-2">
-            {reducedMotion ? null : (
-              <button
-                type="button"
-                aria-label={paused ? 'Retomar destaque' : 'Pausar destaque'}
-                onClick={() => setPaused((value) => !value)}
-                className="flex size-11 items-center justify-center rounded-full border border-white/20 bg-black/40 text-ink"
-              >
-                {paused ? (
-                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                    <path fill="currentColor" d="M8 5v14l11-7z" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                    <path fill="currentColor" d="M7 5h3v14H7zm7 0h3v14h-3z" />
-                  </svg>
-                )}
-              </button>
-            )}
-            <button
-              type="button"
-              aria-label="Título anterior"
-              onClick={() => handleStep(-1)}
-              className="hidden size-11 items-center justify-center rounded-full border border-white/20 bg-black/40 md:flex"
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M15.4 4.7 7.1 12l8.3 7.3 1.3-1.5L9.9 12l6.8-6.1z"
-                />
-              </svg>
-            </button>
-            <button
-              type="button"
-              aria-label="Próximo título"
-              onClick={() => handleStep(1)}
-              className="hidden size-11 items-center justify-center rounded-full border border-white/20 bg-black/40 md:flex"
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M8.6 4.7 7.3 6.2 14.1 12l-6.8 6.1 1.3 1.5L16.9 12z"
-                />
-              </svg>
-            </button>
-          </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       <p className="sr-only" aria-live="polite">
         {current.title}

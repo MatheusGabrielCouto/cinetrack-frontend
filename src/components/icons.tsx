@@ -159,6 +159,23 @@ export const IconChevronLeft = ({ className }: IconProps) => (
   </svg>
 )
 
+export const IconInfo = ({ className }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+    className={cn(base, className)}
+  >
+    <circle cx="12" cy="12" r="8.2" />
+    <path d="M12 11.2V16" />
+    <path d="M12 8.2h.01" />
+  </svg>
+)
+
 export const IconChevronRight = ({ className }: IconProps) => (
   <svg
     viewBox="0 0 24 24"

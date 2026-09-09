@@ -164,6 +164,19 @@ textarea {
   animation: catalog-in 320ms var(--ease-out-quart) both;
 }
 
+@keyframes hero-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.hero-progress {
+  animation: hero-progress 9s linear forwards;
+}
+
 .featured-zoom {
   transform: scale(1);
   transform-origin: 50% 50%;
@@ -185,6 +198,7 @@ textarea {
 
   .catalog-enter,
   .hero-copy-in,
+  .hero-progress,
   .animate-rise,
   .animate-rise-delay,
   .title-hero-in,

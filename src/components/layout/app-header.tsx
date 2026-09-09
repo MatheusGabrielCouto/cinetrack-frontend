@@ -62,6 +62,7 @@ export const AppHeader = () => {
   }
 
   const isCinematic =
+    pathname === '/' ||
     pathname.startsWith('/discover') ||
     pathname.startsWith('/title/') ||
     pathname.startsWith('/upcoming') ||
@@ -206,6 +207,11 @@ export const AppHeader = () => {
                 <Button
                   variant="ghost"
                   size="sm"
+                  className={
+                    isCinematic && !scrolled
+                      ? 'border-white/40 bg-black/25 text-ink hover:bg-white/10'
+                      : undefined
+                  }
                   onClick={() => router.push('/login')}
                 >
                   Entrar

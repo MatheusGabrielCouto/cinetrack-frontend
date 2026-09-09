@@ -182,3 +182,130 @@ export const MediaRowSkeleton = () => {
     </section>
   )
 }
+
+type RankedMediaRowProps = {
+  title: string
+  items: TmdbMedia[]
+  getHref?: (media: TmdbMedia) => string
+}
+
+export const RankedMediaRow = ({ title, items, getHref }: RankedMediaRowProps) => {
+  const ranked = items.slice(0, 10)
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  const [canLeft, setCanLeft] = useState(false)
+  const [canRight, setCanRight] = useState(true)
+
+  const updateArrows = () => {
+    const el = scrollerRef.current
+    if (!el) return
+    setCanLeft(el.scrollLeft > 8)
+    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 8)
+  }
+
+  useEffect(() => {
+    updateArrows()
+    const el = scrollerRef.current
+    if (!el) return
+    const observer = new ResizeObserver(() => updateArrows())
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [ranked])
+
+  if (ranked.length === 0) return null
+
+  const handleScroll = (direction: 'left' | 'right') => {
+    const el = scrollerRef.current
+    if (!el) return
+    const amount = Math.min(el.clientWidth * 0.85, 720)
+    const prefersReduced = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    ).matches
+    el.scrollBy({
+      left: direction === 'left' ? -amount : amount,
+      behavior: prefersReduced ? 'auto' : 'smooth',
+    })
+  }
+
+  return (
+    <section className="group/row relative space-y-3">
+      <h2 className="px-4 text-lg font-semibold tracking-tight text-ink sm:px-8 sm:text-xl">
+        {title}
+      </h2>
+
+      <div className="relative">
+        {canLeft ? (
+          <button
+            type="button"
+            aria-label="Rolar para a esquerda"
+            onClick={() => handleScroll('left')}
+            className="absolute left-0 top-0 z-20 hidden h-full w-11 items-center justify-center bg-black/55 text-white opacity-0 transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover/row:opacity-100 md:flex"
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M15.4 4.7 7.1 12l8.3 7.3 1.3-1.5L9.9 12l6.8-6.1z"
+              />
+            </svg>
+          </button>
+        ) : null}
+
+        {canRight ? (
+          <button
+            type="button"
+            aria-label="Rolar para a direita"
+            onClick={() => handleScroll('right')}
+            className="absolute right-0 top-0 z-20 hidden h-full w-11 items-center justify-center bg-black/55 text-white opacity-0 transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover/row:opacity-100 md:flex"
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M8.6 4.7 7.3 6.2 14.1 12l-6.8 6.1 1.3 1.5L16.9 12z"
+              />
+            </svg>
+          </button>
+        ) : null}
+
+        <div
+          ref={scrollerRef}
+          onScroll={updateArrows}
+          className="hide-scrollbar flex items-end gap-1 overflow-x-auto px-4 pb-2 sm:gap-2 sm:px-8"
+        >
+          {ranked.map((media, index) => {
+            const href =
+              getHref?.(media) ??
+              `/title/${media.mediaType.toLowerCase()}/${media.id}`
+            const rank = index + 1
+
+            return (
+              <Link
+                key={`${media.mediaType}-${media.id}`}
+                href={href}
+                className="group relative flex shrink-0 items-end focus-visible:outline-none"
+                aria-label={`${rank}º. ${media.title}`}
+                tabIndex={0}
+              >
+                <span
+                  aria-hidden
+                  className="mb-[-6px] select-none font-display text-[7.5rem] font-black leading-none text-bg [-webkit-text-stroke:3px_#8b8b8b] sm:text-[9rem]"
+                >
+                  {rank}
+                </span>
+                <span className="-ml-6 w-[110px] sm:-ml-8 sm:w-[130px] md:w-[148px]">
+                  <span className="relative block aspect-[2/3] overflow-hidden rounded-md bg-surface-2 shadow-[0_12px_28px_rgba(0,0,0,0.45)] transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.05] group-hover:shadow-[0_16px_40px_rgba(0,0,0,0.55)]">
+                    <TmdbImage
+                      path={media.posterPath}
+                      alt=""
+                      size="w342"
+                      fill
+                      sizes="148px"
+                    />
+                  </span>
+                </span>
+              </Link>
+            )
+          })}
+        </div>
+      </div>
+    </section>
+  )
+}
