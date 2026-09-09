@@ -190,3 +190,36 @@ export const IconChevronRight = ({ className }: IconProps) => (
     <path d="m9.5 5 7 7-7 7" />
   </svg>
 )
+
+export const IconVolume = ({ className }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.7"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+    className={cn(base, className)}
+  >
+    <path d="M4 10v4h3.2L12 18V6L7.2 10H4Z" />
+    <path d="M16 9.2a4.2 4.2 0 0 1 0 5.6" />
+    <path d="M18.4 7a7 7 0 0 1 0 10" />
+  </svg>
+)
+
+export const IconVolumeOff = ({ className }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.7"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+    className={cn(base, className)}
+  >
+    <path d="M4 10v4h3.2L12 18V6L7.2 10H4Z" />
+    <path d="m16 10 5 5M21 10l-5 5" />
+  </svg>
+)

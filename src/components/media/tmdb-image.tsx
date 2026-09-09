@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { tmdbImage } from '@/lib/tmdb/client'
 import { cn } from '@/lib/utils'
 
@@ -29,6 +29,7 @@ export const TmdbImage = ({
   fill = false,
   sizes,
 }: TmdbImageProps) => {
+  const imgRef = useRef<HTMLImageElement>(null)
   const remote = tmdbImage(path, size)
   const [failed, setFailed] = useState(false)
   const [loaded, setLoaded] = useState(false)
@@ -37,7 +38,13 @@ export const TmdbImage = ({
   useEffect(() => {
     setFailed(false)
     setLoaded(false)
-  }, [path])
+  }, [path, size])
+
+  useEffect(() => {
+    const img = imgRef.current
+    if (!img?.complete) return
+    if (img.naturalWidth > 0) setLoaded(true)
+  }, [src])
 
   const handleError = () => {
     if (src !== POSTER_FALLBACK) {
@@ -45,6 +52,10 @@ export const TmdbImage = ({
       setLoaded(false)
       return
     }
+    setLoaded(true)
+  }
+
+  const handleLoad = () => {
     setLoaded(true)
   }
 
@@ -57,13 +68,14 @@ export const TmdbImage = ({
         )}
       />
       <img
+        ref={imgRef}
         src={src}
         alt={alt}
         loading={priority ? 'eager' : 'lazy'}
         decoding="async"
         fetchPriority={priority ? 'high' : 'auto'}
         sizes={sizes}
-        onLoad={() => setLoaded(true)}
+        onLoad={handleLoad}
         onError={handleError}
         className={cn(
           'h-full w-full object-cover transition-opacity duration-300',

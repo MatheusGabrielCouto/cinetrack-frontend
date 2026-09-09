@@ -206,6 +206,8 @@ const TitleDetailView = ({ details }: { details: TmdbMediaDetails }) => {
     <div className="relative pb-28 xl:pb-20">
       <TitleHero
         details={details}
+        trailerKey={mainTrailer?.key ?? null}
+        isModalOpen={Boolean(activeTrailer)}
         onPlayTrailer={
           mainTrailer ? () => setActiveTrailer(mainTrailer.key) : null
         }
