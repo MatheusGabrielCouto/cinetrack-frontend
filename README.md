@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CineTrack Frontend
 
-## Getting Started
+Next.js app for discovering movies/TV via TMDB and tracking them through the CineTrack API.
 
-First, run the development server:
+## Stack
+
+- Next.js 16 (App Router)
+- TypeScript
+- Tailwind CSS 4
+- TMDB (direct from the browser)
+- CineTrack REST API (JWT)
+
+## Pages
+
+| Route | Description |
+|-------|-------------|
+| `/` | Marketing landing |
+| `/login` | Sign in |
+| `/register` | Create account |
+| `/discover` | TMDB search + trending |
+| `/library` | Personal library with filters |
+| `/stats` | Dashboard stats |
+| `/title/movie/:id` | Movie detail + tracking panel |
+| `/title/tv/:id` | TV detail + tracking panel |
+
+## Setup
+
+### 1. Install
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd cinetrack-frontend
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Environment
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+cp .env.example .env.local
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Fill in:
 
-## Learn More
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3000
+NEXT_PUBLIC_TMDB_API_KEY=your_tmdb_key
+NEXT_PUBLIC_TMDB_IMAGE_BASE=https://image.tmdb.org/t/p
+```
 
-To learn more about Next.js, take a look at the following resources:
+Get a TMDB key at https://www.themoviedb.org/settings/api
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 3. Run backend
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Make sure `cinetrack-backend` is running on port 3000 with CORS allowing `http://localhost:3001`.
 
-## Deploy on Vercel
+### 4. Start frontend
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+pnpm dev
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Open http://localhost:3001
+
+Demo user (from backend seed):
+
+- Email: `demo@cinetrack.app`
+- Password: `password123`
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `pnpm dev` | Dev server on port 3001 |
+| `pnpm build` | Production build |
+| `pnpm start` | Serve production build |
+| `pnpm lint` | ESLint |
+
+## Architecture notes
+
+- Auth tokens live in `localStorage` and refresh automatically on 401
+- TMDB is called from the client; the backend never stores movie metadata
+- Library/stats always go through the NestJS API
