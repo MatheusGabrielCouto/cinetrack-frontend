@@ -2,8 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { IconExternal, IconHeart, IconHeartFill, IconPlay, IconStar } from '@/components/icons'
-import { StatusControl } from '@/components/library/status-control'
+import { IconExternal, IconPlay, IconStar } from '@/components/icons'
 import { useTitleLibrary } from '@/components/library/title-library-context'
 import { TmdbImage } from '@/components/media/tmdb-image'
 import { HeroTrailer } from '@/components/media/hero-trailer'
@@ -65,7 +64,6 @@ export const TitleHero = ({
   const {
     item,
     status,
-    isFavorite,
     currentSeason,
     currentEpisode,
     isSaving,
@@ -83,10 +81,6 @@ export const TitleHero = ({
     details.mediaType === 'TV' && currentSeason && currentEpisode
       ? formatEpisodeCode(currentSeason, currentEpisode)
       : null
-
-  const handleFavoriteToggle = () => {
-    void persist({ isFavorite: !isFavorite })
-  }
 
   const handleContinue = () => {
     const firstSeason = regularSeasons(seasons)[0]?.seasonNumber ?? 1
@@ -113,33 +107,36 @@ export const TitleHero = ({
   }
 
   return (
-    <section className="relative -mt-16 min-h-[88vh] w-full overflow-hidden">
-      <TmdbImage
-        path={details.backdropPath ?? details.posterPath}
-        alt=""
-        size="w1280"
-        fill
-        priority
-        sizes="100vw"
-        imgClassName="object-cover object-top"
-      />
-      {trailerKey ? (
-        <HeroTrailer
-          videoKey={trailerKey}
-          isModalOpen={isModalOpen}
-          onPlayingChange={setTrailerPlaying}
-        />
-      ) : null}
-      <div className="pointer-events-none absolute inset-0 z-[2] bg-gradient-to-r from-bg via-bg/78 to-bg/25" />
-      <div className="pointer-events-none absolute inset-0 z-[2] bg-gradient-to-t from-bg via-bg/20 to-black/45" />
+    <section className="relative w-full sm:-mt-16">
+      <div className="relative sm:min-h-[88vh]">
+        <div className="relative aspect-[16/9] w-full overflow-hidden sm:absolute sm:inset-0 sm:aspect-auto">
+          <TmdbImage
+            path={details.backdropPath ?? details.posterPath}
+            alt=""
+            size="w1280"
+            fill
+            priority
+            sizes="100vw"
+            imgClassName="object-cover object-center sm:object-top"
+          />
+          {trailerKey ? (
+            <HeroTrailer
+              videoKey={trailerKey}
+              isModalOpen={isModalOpen}
+              onPlayingChange={setTrailerPlaying}
+            />
+          ) : null}
+          <div className="pointer-events-none absolute inset-0 z-[2] hidden bg-gradient-to-r from-bg via-bg/78 to-bg/25 sm:block" />
+          <div className="pointer-events-none absolute inset-0 z-[2] hidden bg-gradient-to-t from-bg via-bg/20 to-black/45 sm:block" />
+        </div>
 
-      <div className="relative z-10 mx-auto flex min-h-[88vh] w-full max-w-[1400px] items-end px-4 pb-10 pt-28 sm:px-8 sm:pb-14">
-        <div className="grid w-full items-end gap-8 lg:grid-cols-[240px_1fr] xl:grid-cols-[260px_1fr]">
+        <div className="relative z-10 mx-auto w-full max-w-[1400px] px-4 pb-10 pt-5 sm:flex sm:min-h-[88vh] sm:items-end sm:px-8 sm:pb-14 sm:pt-28">
+          <div className="grid w-full items-end gap-8 lg:grid-cols-[240px_1fr] xl:grid-cols-[260px_1fr]">
           <div
             className={cn(
               overlayMotion,
               'relative mx-auto hidden aspect-[2/3] w-full max-w-[240px] lg:block',
-              trailerPlaying ? 'opacity-[0.58]' : 'opacity-100',
+              trailerPlaying ? 'sm:opacity-[0.58]' : 'opacity-100',
             )}
           >
             <div className="title-hero-in relative h-full overflow-hidden rounded-md bg-surface-2 shadow-[0_28px_70px_rgba(0,0,0,0.62)]">
@@ -158,10 +155,10 @@ export const TitleHero = ({
             <div
               className={cn(
                 overlayMotion,
-                trailerPlaying ? 'opacity-[0.8]' : 'opacity-100',
+                trailerPlaying ? 'sm:opacity-[0.8]' : 'opacity-100',
               )}
             >
-              <h1 className="title-hero-in font-display text-[2.6rem] font-bold leading-[0.92] tracking-[-0.04em] text-white sm:text-6xl md:text-7xl">
+              <h1 className="title-hero-in font-display text-[2.15rem] font-bold leading-[0.92] tracking-[-0.04em] text-white sm:text-6xl md:text-7xl">
                 {details.title}
               </h1>
 
@@ -209,7 +206,7 @@ export const TitleHero = ({
               className={cn(
                 overlayMotion,
                 'delay-100 duration-[820ms]',
-                trailerPlaying ? 'opacity-[0.18]' : 'opacity-100',
+                trailerPlaying ? 'sm:opacity-[0.18]' : 'opacity-100',
               )}
             >
               <p className="title-hero-copy mt-6 max-w-[62ch] text-base leading-relaxed text-white/88">
@@ -243,85 +240,66 @@ export const TitleHero = ({
             <div
               className={cn(
                 overlayMotion,
-                'mt-8 flex flex-col gap-4 delay-150',
-                trailerPlaying ? 'opacity-[0.8]' : 'opacity-100',
+                'mt-8 flex flex-wrap items-center gap-2 delay-150',
+                trailerPlaying ? 'sm:opacity-[0.8]' : 'opacity-100',
               )}
             >
-              <div className="flex flex-wrap items-center gap-2">
-                {onPlayTrailer ? (
-                  <button
-                    type="button"
-                    onClick={onPlayTrailer}
-                    className="inline-flex items-center gap-2 rounded bg-ink px-5 py-2.5 text-sm font-semibold text-bg transition duration-200 hover:bg-ink/90"
-                  >
-                    <IconPlay className="size-4" />
-                    Trailer
-                  </button>
-                ) : null}
-
-                {details.mediaType === 'TV' ? (
-                  <button
-                    type="button"
-                    onClick={handleContinue}
-                    disabled={isSaving}
-                    className="inline-flex items-center gap-2 rounded bg-accent px-5 py-2.5 text-sm font-semibold text-white transition duration-200 hover:bg-accent-deep disabled:opacity-50"
-                  >
-                    <IconPlay className="size-4" />
-                    {status === 'WATCHING' && continueLabel
-                      ? `Continuar ${continueLabel}`
-                      : status === 'WATCHED'
-                        ? 'Assistir de novo'
-                        : 'Começar a assistir'}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleMarkWatched}
-                    disabled={isSaving || status === 'WATCHED'}
-                    className={cn(
-                      'rounded px-5 py-2.5 text-sm font-semibold transition duration-200 disabled:opacity-50',
-                      status === 'WATCHED'
-                        ? 'bg-ok/20 text-ok'
-                        : 'bg-accent text-white hover:bg-accent-deep',
-                    )}
-                  >
-                    {status === 'WATCHED' ? 'Assistido' : 'Marcar como assistido'}
-                  </button>
-                )}
-
-                {details.homepage ? (
-                  <a
-                    href={details.homepage}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded bg-white/12 px-4 py-2.5 text-sm font-semibold text-white transition duration-200 hover:bg-white/20"
-                  >
-                    <IconExternal className="size-4" />
-                    Site
-                  </a>
-                ) : null}
-
+              {onPlayTrailer ? (
                 <button
                   type="button"
-                  onClick={handleFavoriteToggle}
+                  onClick={onPlayTrailer}
+                  className="inline-flex items-center gap-2 rounded bg-ink px-5 py-2.5 text-sm font-semibold text-bg transition duration-200 hover:bg-ink/90"
+                >
+                  <IconPlay className="size-4" />
+                  Trailer
+                </button>
+              ) : null}
+
+              {details.mediaType === 'TV' ? (
+                <button
+                  type="button"
+                  onClick={handleContinue}
                   disabled={isSaving}
-                  aria-label={isFavorite ? 'Remover dos favoritos' : 'Favoritar'}
-                  aria-pressed={isFavorite}
+                  className="inline-flex items-center gap-2 rounded bg-accent px-5 py-2.5 text-sm font-semibold text-white transition duration-200 hover:bg-accent-deep disabled:opacity-50"
+                >
+                  <IconPlay className="size-4" />
+                  {status === 'WATCHING' && continueLabel
+                    ? `Continuar ${continueLabel}`
+                    : status === 'WATCHED'
+                      ? 'Assistir de novo'
+                      : 'Começar a assistir'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleMarkWatched}
+                  disabled={isSaving || status === 'WATCHED'}
                   className={cn(
-                    'flex size-11 items-center justify-center rounded-full transition duration-200',
-                    isFavorite
-                      ? 'bg-accent/20 text-accent'
-                      : 'bg-white/12 text-white hover:bg-white/20',
+                    'rounded px-5 py-2.5 text-sm font-semibold transition duration-200 disabled:opacity-50',
+                    status === 'WATCHED'
+                      ? 'bg-ok/20 text-ok'
+                      : 'bg-accent text-white hover:bg-accent-deep',
                   )}
                 >
-                  {isFavorite ? <IconHeartFill /> : <IconHeart />}
+                  {status === 'WATCHED' ? 'Assistido' : 'Marcar como assistido'}
                 </button>
-              </div>
+              )}
 
-              <StatusControl size="hero" />
+              {details.homepage ? (
+                <a
+                  href={details.homepage}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 rounded bg-white/12 px-4 py-2.5 text-sm font-semibold text-white transition duration-200 hover:bg-white/20"
+                >
+                  <IconExternal className="size-4" />
+                  Site
+                </a>
+              ) : null}
             </div>
           </div>
         </div>
+      </div>
       </div>
     </section>
   )

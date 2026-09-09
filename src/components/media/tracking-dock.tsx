@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { IconPlay } from '@/components/icons'
-import { StatusControl } from '@/components/library/status-control'
 import { useTitleLibrary } from '@/components/library/title-library-context'
 import { formatEpisodeCode } from '@/lib/library/progress'
 
@@ -62,10 +61,7 @@ export const TrackingDock = () => {
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/95 px-4 py-3 backdrop-blur-md xl:hidden">
-      <div className="mx-auto flex max-w-[1400px] items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <StatusControl size="bar" />
-        </div>
+      <div className="mx-auto flex max-w-[1400px] items-center justify-end gap-3">
         <button
           type="button"
           onClick={handleContinue}

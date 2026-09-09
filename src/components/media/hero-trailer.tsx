@@ -11,7 +11,6 @@ type HeroTrailerProps = {
 }
 
 const DELAY_MS = 2000
-const TOP_LIMIT = 140
 const FADE_MS = 700
 const YT_ORIGINS = new Set([
   'https://www.youtube.com',
@@ -29,38 +28,42 @@ const commandPlayer = (
   )
 }
 
-const isAtPageStart = () =>
-  typeof window !== 'undefined' &&
-  window.scrollY < TOP_LIMIT &&
-  !document.hidden
-
 export const HeroTrailer = ({
   videoKey,
   isModalOpen,
   onPlayingChange,
 }: HeroTrailerProps) => {
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const inViewRef = useRef(true)
   const startTimer = useRef(0)
   const unmountTimer = useRef(0)
   const readyTimer = useRef(0)
-  const wasAtTop = useRef(true)
   const [mounted, setMounted] = useState(false)
   const [visible, setVisible] = useState(false)
   const [muted, setMuted] = useState(true)
   const [volume, setVolume] = useState(70)
   const [volumeOpen, setVolumeOpen] = useState(false)
   const [reducedMotion, setReducedMotion] = useState(false)
+  const [canHover, setCanHover] = useState(false)
   const lastVolume = useRef(70)
   const volumeLeaveTimer = useRef(0)
   const draggingVolume = useRef(false)
   const volumeTrackRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const sync = () => setReducedMotion(media.matches)
-    sync()
-    media.addEventListener('change', sync)
-    return () => media.removeEventListener('change', sync)
+    const motion = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const hover = window.matchMedia('(hover: hover) and (pointer: fine)')
+    const syncMotion = () => setReducedMotion(motion.matches)
+    const syncHover = () => setCanHover(hover.matches)
+    syncMotion()
+    syncHover()
+    motion.addEventListener('change', syncMotion)
+    hover.addEventListener('change', syncHover)
+    return () => {
+      motion.removeEventListener('change', syncMotion)
+      hover.removeEventListener('change', syncHover)
+    }
   }, [])
 
   useEffect(() => {
@@ -92,9 +95,9 @@ export const HeroTrailer = ({
 
     const arm = () => {
       cancelStart()
-      if (reducedMotion || isModalOpen || !isAtPageStart()) return
+      if (reducedMotion || isModalOpen || !inViewRef.current) return
       startTimer.current = window.setTimeout(() => {
-        if (!reducedMotion && !isModalOpen && isAtPageStart()) {
+        if (!reducedMotion && !isModalOpen && inViewRef.current && !document.hidden) {
           startPlayback()
         }
       }, DELAY_MS)
@@ -106,38 +109,52 @@ export const HeroTrailer = ({
       return
     }
 
-    wasAtTop.current = isAtPageStart()
-    if (wasAtTop.current) arm()
+    const root = rootRef.current
+    if (!root) return
 
-    const handleScroll = () => {
-      const atTop = isAtPageStart()
-      if (atTop && !wasAtTop.current) arm()
-      if (!atTop && wasAtTop.current) {
-        cancelStart()
-        stopPlayback()
-      }
-      wasAtTop.current = atTop
-    }
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        const nowInView =
+          !document.hidden &&
+          entry.isIntersecting &&
+          entry.intersectionRatio >= 0.35
+
+        if (nowInView && !inViewRef.current) arm()
+        if (!nowInView && inViewRef.current) {
+          cancelStart()
+          stopPlayback()
+        }
+        inViewRef.current = nowInView
+      },
+      { threshold: [0, 0.35, 0.6, 1] },
+    )
+
+    io.observe(root)
+    inViewRef.current =
+      root.getBoundingClientRect().top < window.innerHeight &&
+      root.getBoundingClientRect().bottom > 0
+    if (inViewRef.current) arm()
 
     const handleVisibility = () => {
       if (document.hidden) {
         cancelStart()
         stopPlayback()
-        wasAtTop.current = false
+        inViewRef.current = false
         return
       }
-      wasAtTop.current = isAtPageStart()
-      if (wasAtTop.current) arm()
+      const rect = root.getBoundingClientRect()
+      inViewRef.current =
+        rect.top < window.innerHeight * 0.85 && rect.bottom > 80
+      if (inViewRef.current) arm()
     }
 
-    window.addEventListener('scroll', handleScroll, { passive: true })
     document.addEventListener('visibilitychange', handleVisibility)
 
     return () => {
       cancelStart()
       window.clearTimeout(unmountTimer.current)
       window.clearTimeout(readyTimer.current)
-      window.removeEventListener('scroll', handleScroll)
+      io.disconnect()
       document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [isModalOpen, reducedMotion, videoKey])
@@ -299,75 +316,79 @@ export const HeroTrailer = ({
 
   return (
     <>
-      {mounted ? (
-        <div
-          className={cn(
-            'pointer-events-none absolute inset-0 z-[1] overflow-hidden transition-opacity duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
-            visible ? 'opacity-100' : 'opacity-0',
-          )}
-          aria-hidden
-        >
-          <iframe
-            ref={iframeRef}
-            title="Trailer em segundo plano"
-            src={src}
-            allow="autoplay; encrypted-media"
-            onLoad={handleIframeLoad}
-            tabIndex={-1}
-            className="absolute left-1/2 top-1/2 aspect-video h-[56.25vw] w-[177.78vh] min-h-[115%] min-w-[115%] -translate-x-1/2 -translate-y-1/2 scale-[1.22] border-0"
-          />
-        </div>
-      ) : null}
+      <div ref={rootRef} className="pointer-events-none absolute inset-0 z-[1]">
+        {mounted ? (
+          <div
+            className={cn(
+              'absolute inset-0 overflow-hidden transition-opacity duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
+              visible ? 'opacity-100' : 'opacity-0',
+            )}
+            aria-hidden
+          >
+            <iframe
+              ref={iframeRef}
+              title="Trailer em segundo plano"
+              src={src}
+              allow="autoplay; encrypted-media"
+              onLoad={handleIframeLoad}
+              tabIndex={-1}
+              className="absolute left-1/2 top-1/2 h-[118%] w-[118%] max-w-none -translate-x-1/2 -translate-y-1/2 border-0 sm:h-[56.25vw] sm:w-[177.78vh] sm:min-h-[115%] sm:min-w-[115%] sm:scale-[1.22]"
+            />
+          </div>
+        ) : null}
+      </div>
 
       {visible ? (
         <div
-          className="absolute bottom-8 right-4 z-30 sm:right-8"
-          onMouseEnter={handleVolumeEnter}
-          onMouseLeave={handleVolumeLeave}
-          onFocus={handleVolumeEnter}
-          onBlur={handleVolumeBlur}
+          className="absolute bottom-3 right-3 z-30 sm:bottom-8 sm:right-8"
+          onMouseEnter={canHover ? handleVolumeEnter : undefined}
+          onMouseLeave={canHover ? handleVolumeLeave : undefined}
+          onFocus={canHover ? handleVolumeEnter : undefined}
+          onBlur={canHover ? handleVolumeBlur : undefined}
         >
-          <div
-            className={cn(
-              'absolute bottom-11 left-1/2 flex -translate-x-1/2 flex-col items-center pb-2',
-              'origin-bottom transition-[opacity,transform] duration-[250ms] ease-[cubic-bezier(0.16,1,0.3,1)]',
-              volumeOpen
-                ? 'translate-y-0 opacity-100'
-                : 'pointer-events-none translate-y-2 opacity-0',
-            )}
-          >
-            <div className="rounded-full border border-white/20 bg-black/60 px-2.5 py-3.5 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-md">
-              <div
-                ref={volumeTrackRef}
-                role="slider"
-                aria-label="Volume do trailer"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={muted ? 0 : volume}
-                aria-valuetext={`${muted ? 0 : volume}%`}
-                tabIndex={0}
-                onPointerDown={handleVolumePointerDown}
-                onPointerMove={handleVolumePointerMove}
-                onPointerUp={handleVolumePointerUp}
-                onPointerCancel={handleVolumePointerUp}
-                onKeyDown={handleVolumeKeyDown}
-                className="relative h-24 w-7 cursor-ns-resize touch-none"
-              >
-                <div className="absolute inset-x-[11px] inset-y-0 rounded-full bg-white/25" />
+          {canHover ? (
+            <div
+              className={cn(
+                'absolute bottom-11 left-1/2 flex -translate-x-1/2 flex-col items-center pb-2',
+                'origin-bottom transition-[opacity,transform] duration-[250ms] ease-[cubic-bezier(0.16,1,0.3,1)]',
+                volumeOpen
+                  ? 'translate-y-0 opacity-100'
+                  : 'pointer-events-none translate-y-2 opacity-0',
+              )}
+            >
+              <div className="rounded-full border border-white/20 bg-black/60 px-2.5 py-3.5 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-md">
                 <div
-                  className="absolute inset-x-[11px] bottom-0 rounded-full bg-white"
-                  style={{ height: `${muted ? 0 : volume}%` }}
-                />
-                <div
-                  className="absolute left-1/2 size-3.5 rounded-full bg-white shadow-[0_0_0_3px_rgba(0,0,0,0.35)]"
-                  style={{
-                    top: `${100 - (muted ? 0 : volume)}%`,
-                    transform: 'translate(-50%, -50%)',
-                  }}
-                />
+                  ref={volumeTrackRef}
+                  role="slider"
+                  aria-label="Volume do trailer"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={muted ? 0 : volume}
+                  aria-valuetext={`${muted ? 0 : volume}%`}
+                  tabIndex={0}
+                  onPointerDown={handleVolumePointerDown}
+                  onPointerMove={handleVolumePointerMove}
+                  onPointerUp={handleVolumePointerUp}
+                  onPointerCancel={handleVolumePointerUp}
+                  onKeyDown={handleVolumeKeyDown}
+                  className="relative h-24 w-7 cursor-ns-resize touch-none"
+                >
+                  <div className="absolute inset-x-[11px] inset-y-0 rounded-full bg-white/25" />
+                  <div
+                    className="absolute inset-x-[11px] bottom-0 rounded-full bg-white"
+                    style={{ height: `${muted ? 0 : volume}%` }}
+                  />
+                  <div
+                    className="absolute left-1/2 size-3.5 rounded-full bg-white shadow-[0_0_0_3px_rgba(0,0,0,0.35)]"
+                    style={{
+                      top: `${100 - (muted ? 0 : volume)}%`,
+                      transform: 'translate(-50%, -50%)',
+                    }}
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          ) : null}
 
           <button
             type="button"
@@ -375,7 +396,7 @@ export const HeroTrailer = ({
             aria-label={muted ? 'Ativar som do trailer' : 'Desativar som do trailer'}
             aria-pressed={!muted}
             tabIndex={0}
-            className="flex size-11 items-center justify-center rounded-full border border-white/35 bg-black/45 text-white transition duration-200 hover:bg-black/70"
+            className="flex size-10 items-center justify-center rounded-full border border-white/45 bg-black/70 text-white transition duration-200 hover:bg-black/85 sm:size-11"
           >
             {muted || volume === 0 ? <IconVolumeOff /> : <IconVolume />}
           </button>
