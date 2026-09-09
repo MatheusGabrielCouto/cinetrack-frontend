@@ -164,6 +164,20 @@ textarea {
   animation: catalog-in 320ms var(--ease-out-quart) both;
 }
 
+.featured-zoom {
+  transform: scale(1);
+  transform-origin: 50% 50%;
+  will-change: transform;
+  transition:
+    opacity 300ms var(--ease-out-quart),
+    transform 700ms var(--ease-out-quart);
+}
+
+.group:hover .featured-zoom,
+.group:focus-visible .featured-zoom {
+  transform: scale(1.08);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .catalog-crossfade {
     transition: none;
@@ -177,6 +191,14 @@ textarea {
   .title-hero-in-delay,
   .title-hero-copy {
     animation: none;
+  }
+
+  .featured-zoom,
+  .group:hover .featured-zoom,
+  .group:focus-visible .featured-zoom {
+    transform: none;
+    transition: none;
+    will-change: auto;
   }
 
   .hero-kenburns {
@@ -197,6 +219,28 @@ textarea {
 
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(245 245 245 / 0.28) transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: rgb(245 245 245 / 0.28);
+  border-radius: 999px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgb(245 245 245 / 0.45);
 }
 
 .row-fade-left {

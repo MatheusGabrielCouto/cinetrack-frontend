@@ -127,3 +127,49 @@ export const IconList = ({ className }: IconProps) => (
     <path d="M4 7h.01M4 12h.01M4 17h.01" />
   </svg>
 )
+
+export const IconSearch = ({ className }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+    className={cn(base, className)}
+  >
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="m16 16 4.2 4.2" />
+  </svg>
+)
+
+export const IconChevronLeft = ({ className }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+    className={cn(base, className)}
+  >
+    <path d="m14.5 5-7 7 7 7" />
+  </svg>
+)
+
+export const IconChevronRight = ({ className }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+    className={cn(base, className)}
+  >
+    <path d="m9.5 5 7 7-7 7" />
+  </svg>
+)

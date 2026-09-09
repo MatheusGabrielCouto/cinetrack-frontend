@@ -64,6 +64,10 @@ export const AppHeader = () => {
   const isCinematic =
     pathname.startsWith('/discover') ||
     pathname.startsWith('/title/') ||
+    pathname.startsWith('/upcoming') ||
+    pathname.startsWith('/library') ||
+    pathname.startsWith('/for-you') ||
+    pathname.startsWith('/calendar') ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/register')
   const moreActive = moreLinks.some((link) => pathname.startsWith(link.href))
