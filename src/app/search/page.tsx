@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { RequireAuth } from '@/components/auth/require-auth'
 import { MediaPoster } from '@/components/media/media-poster'
 import { Button } from '@/components/ui/button'
@@ -108,6 +109,26 @@ const fieldClass =
   'h-11 w-full rounded-lg border border-line bg-surface-2 px-3 text-ink placeholder:text-mute/70 transition focus:border-accent'
 
 export default function SearchPage() {
+  return (
+    <RequireAuth>
+      <Suspense
+        fallback={
+          <div className="mx-auto max-w-[1400px] px-4 py-16 sm:px-8">
+            <p className="text-mute">Carregando busca…</p>
+          </div>
+        }
+      >
+        <SearchContent />
+      </Suspense>
+    </RequireAuth>
+  )
+}
+
+const SearchContent = () => {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const keywordParam = searchParams.get('keyword') ?? ''
+  const keywordNameParam = searchParams.get('name') ?? ''
   const inputRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
   const [mediaType, setMediaType] = useState<MediaType | 'ALL'>('ALL')
@@ -118,11 +139,13 @@ export default function SearchPage() {
   const [runtimePreset, setRuntimePreset] = useState<RuntimePreset>('')
   const [country, setCountry] = useState('')
   const [sortBy, setSortBy] = useState('popularity.desc')
+  const [keywordId, setKeywordId] = useState(keywordParam)
+  const [keywordName, setKeywordName] = useState(keywordNameParam)
   const [genres, setGenres] = useState<TmdbGenre[]>([])
   const [results, setResults] = useState<TmdbMedia[]>([])
   const [trending, setTrending] = useState<TmdbMedia[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [searched, setSearched] = useState(false)
+  const [isLoading, setIsLoading] = useState(Boolean(keywordParam))
+  const [searched, setSearched] = useState(Boolean(keywordParam))
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [enterKey, setEnterKey] = useState(0)
@@ -223,7 +246,7 @@ export default function SearchPage() {
     runtimePreset,
   ])
 
-  const hasFilters = activeChips.length > 0
+  const hasFilters = activeChips.length > 0 || Boolean(keywordId)
 
   const runSearch = async (overrides?: {
     query?: string
@@ -234,6 +257,8 @@ export default function SearchPage() {
     genreId?: string
     country?: string
     runtimePreset?: RuntimePreset
+    keywordId?: string
+    keywordName?: string
   }) => {
     const nextQuery = overrides?.query ?? query
     const nextType = overrides?.mediaType ?? mediaType
@@ -243,6 +268,7 @@ export default function SearchPage() {
     const nextGenreId = overrides?.genreId ?? genreId
     const nextCountry = overrides?.country ?? country
     const nextRuntime = overrides?.runtimePreset ?? runtimePreset
+    const nextKeywordId = overrides?.keywordId ?? keywordId
 
     const runtime =
       nextRuntime === 'short'
@@ -260,6 +286,7 @@ export default function SearchPage() {
         nextGenreId ||
         nextCountry ||
         nextRuntime ||
+        nextKeywordId ||
         nextType !== 'ALL',
     )
 
@@ -282,6 +309,8 @@ export default function SearchPage() {
       }
 
       const primaryType: MediaType = nextType === 'TV' ? 'TV' : 'MOVIE'
+      const keywordFilter = nextKeywordId ? Number(nextKeywordId) : undefined
+
       let discovered = await tmdbApi.discover({
         mediaType: primaryType,
         year: nextYear ? Number(nextYear) : undefined,
@@ -291,6 +320,7 @@ export default function SearchPage() {
         runtimeGte: runtime.min,
         runtimeLte: runtime.max,
         country: nextCountry || undefined,
+        keywordId: keywordFilter,
         sortBy,
       })
 
@@ -302,6 +332,7 @@ export default function SearchPage() {
           language: nextLanguage || undefined,
           genreId: nextGenreId ? Number(nextGenreId) : undefined,
           country: nextCountry || undefined,
+          keywordId: keywordFilter,
           sortBy,
         })
         discovered = [...discovered, ...tv]
@@ -329,6 +360,25 @@ export default function SearchPage() {
     }
   }
 
+  useEffect(() => {
+    if (!keywordParam) return
+    setKeywordId(keywordParam)
+    setKeywordName(keywordNameParam)
+    setQuery('')
+    void runSearch({
+      query: '',
+      keywordId: keywordParam,
+      keywordName: keywordNameParam,
+    })
+  }, [keywordParam, keywordNameParam])
+
+  const handleClearKeyword = () => {
+    setKeywordId('')
+    setKeywordName('')
+    router.replace('/search')
+    void runSearch({ keywordId: '', keywordName: '' })
+  }
+
   const handleSearch = (event?: FormEvent) => {
     event?.preventDefault()
     void runSearch()
@@ -344,10 +394,13 @@ export default function SearchPage() {
     setRuntimePreset('')
     setCountry('')
     setSortBy('popularity.desc')
+    setKeywordId('')
+    setKeywordName('')
     setResults([])
     setSearched(false)
     setError(null)
     setShowAdvanced(false)
+    if (keywordParam) router.replace('/search')
     inputRef.current?.focus()
   }
 
@@ -390,7 +443,10 @@ export default function SearchPage() {
     setCountry(preset.country ?? '')
     setGenreId(nextGenreId)
     setRuntimePreset('')
+    setKeywordId('')
+    setKeywordName('')
     setShowAdvanced(true)
+    if (keywordParam) router.replace('/search')
 
     await runSearch({
       query: '',
@@ -401,6 +457,8 @@ export default function SearchPage() {
       country: preset.country ?? '',
       genreId: nextGenreId,
       runtimePreset: '',
+      keywordId: '',
+      keywordName: '',
     })
   }
 
@@ -410,8 +468,7 @@ export default function SearchPage() {
   }
 
   return (
-    <RequireAuth>
-      <div className="relative pb-16">
+    <div className="relative pb-16">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[340px] bg-[radial-gradient(ellipse_at_top,_rgba(229,9,20,0.18),_transparent_60%)]" />
 
         <div className="relative mx-auto w-full max-w-[1400px] px-4 pt-8 pb-24 sm:px-8 sm:pt-10">
@@ -609,9 +666,20 @@ export default function SearchPage() {
               </div>
             ) : null}
 
-            {activeChips.length > 0 ? (
+            {hasFilters ? (
               <div className="mt-6 flex flex-wrap items-center gap-2.5">
                 <span className="text-xs text-mute">Ativos:</span>
+                {keywordId ? (
+                  <button
+                    type="button"
+                    onClick={handleClearKeyword}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-xs font-medium text-ink transition hover:bg-accent/20"
+                    aria-label={`Remover filtro ${keywordName || 'Keyword'}`}
+                  >
+                    {keywordName || 'Keyword'}
+                    <span aria-hidden>×</span>
+                  </button>
+                ) : null}
                 {activeChips.map((chip) => (
                   <button
                     key={chip.key}
@@ -691,9 +759,11 @@ export default function SearchPage() {
                   <p className="mt-1 text-sm text-mute">
                     {query.trim()
                       ? `Para “${query.trim()}”`
-                      : hasFilters
-                        ? 'Com os filtros selecionados'
-                        : 'Sugestões do catálogo'}
+                      : keywordName
+                        ? `Com a keyword “${keywordName}”`
+                        : hasFilters
+                          ? 'Com os filtros selecionados'
+                          : 'Sugestões do catálogo'}
                   </p>
                 </div>
               </div>
@@ -736,6 +806,5 @@ export default function SearchPage() {
           ) : null}
         </div>
       </div>
-    </RequireAuth>
   )
 }

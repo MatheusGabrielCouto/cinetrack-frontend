@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { tmdbImage } from '@/lib/tmdb/client'
 import { cn } from '@/lib/utils'
 
-type TmdbSize = 'w185' | 'w342' | 'w500' | 'w780' | 'w1280' | 'original'
+type TmdbSize = 'w185' | 'w342' | 'w500' | 'w780' | 'w1280' | 'h632' | 'original'
+
+export const POSTER_FALLBACK = '/poster-fallback.png'
 
 type TmdbImageProps = {
   path: string | null | undefined
@@ -27,22 +29,23 @@ export const TmdbImage = ({
   fill = false,
   sizes,
 }: TmdbImageProps) => {
-  const [loaded, setLoaded] = useState(false)
+  const remote = tmdbImage(path, size)
   const [failed, setFailed] = useState(false)
-  const src = tmdbImage(path, size)
+  const [loaded, setLoaded] = useState(false)
+  const src = !remote || failed ? POSTER_FALLBACK : remote
 
-  if (!src || failed) {
-    return (
-      <div
-        className={cn(
-          'flex items-center justify-center bg-surface-2 text-xs text-mute',
-          fill ? 'absolute inset-0' : 'h-full w-full',
-          className,
-        )}
-      >
-        Sem imagem
-      </div>
-    )
+  useEffect(() => {
+    setFailed(false)
+    setLoaded(false)
+  }, [path])
+
+  const handleError = () => {
+    if (src !== POSTER_FALLBACK) {
+      setFailed(true)
+      setLoaded(false)
+      return
+    }
+    setLoaded(true)
   }
 
   return (
@@ -53,7 +56,6 @@ export const TmdbImage = ({
           loaded ? 'opacity-0' : 'opacity-100',
         )}
       />
-      {/* Direct CDN URL — evita o proxy/otimizador do Next, bem mais rápido no TMDB */}
       <img
         src={src}
         alt={alt}
@@ -62,7 +64,7 @@ export const TmdbImage = ({
         fetchPriority={priority ? 'high' : 'auto'}
         sizes={sizes}
         onLoad={() => setLoaded(true)}
-        onError={() => setFailed(true)}
+        onError={handleError}
         className={cn(
           'h-full w-full object-cover transition-opacity duration-300',
           loaded ? 'opacity-100' : 'opacity-0',

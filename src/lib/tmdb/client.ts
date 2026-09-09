@@ -4,8 +4,11 @@ import type {
   TmdbCredits,
   TmdbDiscoverFilters,
   TmdbEpisode,
+  TmdbKeyword,
   TmdbMedia,
   TmdbMediaDetails,
+  TmdbPersonDetails,
+  TmdbPersonCredit,
   TmdbSeasonDetails,
   TmdbSeasonSummary,
   TmdbVideo,
@@ -91,6 +94,10 @@ type TmdbDetailsRaw = TmdbMovieResult & {
   }
   similar?: { results: TmdbMovieResult[] }
   recommendations?: { results: TmdbMovieResult[] }
+  keywords?: {
+    keywords?: Array<{ id: number; name: string }>
+    results?: Array<{ id: number; name: string }>
+  }
 }
 
 const ensureKey = () => {
@@ -99,12 +106,16 @@ const ensureKey = () => {
   }
 }
 
-const tmdbFetch = async <T>(path: string, params: Record<string, string> = {}) => {
+const tmdbFetch = async <T>(
+  path: string,
+  params: Record<string, string> = {},
+  language = 'pt-BR',
+) => {
   ensureKey()
 
   const url = new URL(`${TMDB_BASE}${path}`)
   url.searchParams.set('api_key', TMDB_API_KEY)
-  url.searchParams.set('language', 'pt-BR')
+  url.searchParams.set('language', language)
 
   Object.entries(params).forEach(([key, value]) => {
     url.searchParams.set(key, value)
@@ -155,7 +166,7 @@ const mapList = (
     .slice(0, limit)
 
 const mapCredits = (credits?: TmdbDetailsRaw['credits']): TmdbCredits => ({
-  cast: (credits?.cast ?? []).slice(0, 18).map((person) => ({
+  cast: (credits?.cast ?? []).slice(0, 24).map((person) => ({
     id: person.id,
     name: person.name,
     character: person.character,
@@ -217,9 +228,109 @@ const mapSeasons = (
       airDate: season.air_date,
     }))
 
+const mapKeywords = (keywords?: TmdbDetailsRaw['keywords']): TmdbKeyword[] => {
+  const list = keywords?.keywords ?? keywords?.results ?? []
+  return list
+    .filter((item) => item.id && item.name)
+    .slice(0, 24)
+    .map((item) => ({ id: item.id, name: item.name }))
+}
+
+type TmdbPersonCreditRaw = TmdbMovieResult & {
+  character?: string
+  job?: string
+  department?: string
+  episode_count?: number
+  popularity?: number
+}
+
+type TmdbPersonRaw = {
+  id: number
+  name: string
+  biography: string
+  birthday: string | null
+  deathday: string | null
+  place_of_birth: string | null
+  known_for_department: string | null
+  gender: number
+  also_known_as: string[]
+  homepage: string | null
+  popularity: number
+  profile_path: string | null
+  imdb_id?: string | null
+  external_ids?: {
+    imdb_id: string | null
+    instagram_id: string | null
+    twitter_id: string | null
+    facebook_id: string | null
+  }
+  images?: {
+    profiles: Array<{
+      file_path: string
+      vote_average: number
+    }>
+  }
+  combined_credits?: {
+    cast: TmdbPersonCreditRaw[]
+    crew: TmdbPersonCreditRaw[]
+  }
+}
+
+const mergePersonCredits = (credits: TmdbPersonCredit[]) => {
+  const merged = new Map<string, TmdbPersonCredit>()
+
+  for (const credit of credits) {
+    const key = `${credit.mediaType}-${credit.id}-${credit.creditKind}`
+    const existing = merged.get(key)
+
+    if (!existing) {
+      merged.set(key, credit)
+      continue
+    }
+
+    const characters = [existing.character, credit.character]
+      .filter((value): value is string => Boolean(value))
+      .filter((value, index, list) => list.indexOf(value) === index)
+    const jobs = [existing.job, credit.job]
+      .filter((value): value is string => Boolean(value))
+      .filter((value, index, list) => list.indexOf(value) === index)
+
+    merged.set(key, {
+      ...existing,
+      character: characters.join(' / ') || existing.character,
+      job: jobs.join(' / ') || existing.job,
+      popularity: Math.max(existing.popularity, credit.popularity),
+      episodeCount:
+        (existing.episodeCount ?? 0) > (credit.episodeCount ?? 0)
+          ? existing.episodeCount
+          : credit.episodeCount,
+    })
+  }
+
+  return [...merged.values()]
+}
+
+const mapPersonCredit = (
+  item: TmdbPersonCreditRaw,
+  kind: 'cast' | 'crew',
+): TmdbPersonCredit | null => {
+  const media = mapMedia(item)
+  if (!media) return null
+
+  return {
+    ...media,
+    character: item.character?.trim() || null,
+    job: item.job?.trim() || null,
+    department: item.department?.trim() || null,
+    episodeCount: item.episode_count ?? null,
+    popularity: item.popularity ?? 0,
+    creditKind: kind,
+  }
+}
+
 export const tmdbImage = (
   path: string | null | undefined,
-  size: 'w185' | 'w342' | 'w500' | 'w780' | 'w1280' | 'original' = 'w342',
+  size: 'w185' | 'w342' | 'w500' | 'w780' | 'w1280' | 'h632' | 'original' = 'w342',
 ) => {
   if (!path) return null
   return `${TMDB_IMAGE_BASE}/${size}${path}`
@@ -332,6 +443,7 @@ export const tmdbApi = {
     }
     if (filters.language) params.with_original_language = filters.language
     if (filters.country) params.with_origin_country = filters.country
+    if (filters.keywordId) params.with_keywords = String(filters.keywordId)
     if (filters.voteAverageGte !== undefined) {
       params['vote_average.gte'] = String(filters.voteAverageGte)
     }
@@ -496,7 +608,7 @@ export const tmdbApi = {
   ): Promise<TmdbMediaDetails> => {
     const path = mediaType === 'MOVIE' ? `/movie/${id}` : `/tv/${id}`
     const data = await tmdbFetch<TmdbDetailsRaw>(path, {
-      append_to_response: 'credits,videos,similar,recommendations',
+      append_to_response: 'credits,videos,similar,recommendations,keywords',
     })
 
     const base = mapMedia(data, mediaType)
@@ -547,6 +659,7 @@ export const tmdbApi = {
         mediaType,
         12,
       ),
+      keywords: mapKeywords(data.keywords),
     }
   },
 
@@ -602,5 +715,65 @@ export const tmdbApi = {
       mediaType === 'MOVIE' ? `/movie/${id}/credits` : `/tv/${id}/credits`
     const data = await tmdbFetch<TmdbDetailsRaw['credits'] & object>(path)
     return mapCredits(data)
+  },
+
+  person: async (id: number): Promise<TmdbPersonDetails> => {
+    const data = await tmdbFetch<TmdbPersonRaw>(`/person/${id}`, {
+      append_to_response: 'combined_credits,images,external_ids',
+    })
+
+    let biography = data.biography?.trim() ?? ''
+    let biographyInEnglish = false
+
+    if (!biography) {
+      try {
+        const english = await tmdbFetch<{ biography: string }>(
+          `/person/${id}`,
+          {},
+          'en-US',
+        )
+        biography = english.biography?.trim() ?? ''
+        biographyInEnglish = Boolean(biography)
+      } catch {
+        biography = ''
+      }
+    }
+
+    const credits = mergePersonCredits([
+      ...(data.combined_credits?.cast ?? []).map((item) =>
+        mapPersonCredit(item, 'cast'),
+      ),
+      ...(data.combined_credits?.crew ?? []).map((item) =>
+        mapPersonCredit(item, 'crew'),
+      ),
+    ].filter((item): item is TmdbPersonCredit => item !== null))
+
+    const photos = (data.images?.profiles ?? [])
+      .sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0))
+      .map((photo) => photo.file_path)
+      .filter((path, index, list) => list.indexOf(path) === index)
+      .slice(0, 16)
+
+    return {
+      id: data.id,
+      name: data.name,
+      biography,
+      biographyInEnglish,
+      birthday: data.birthday,
+      deathday: data.deathday,
+      placeOfBirth: data.place_of_birth,
+      knownForDepartment: data.known_for_department,
+      gender: data.gender,
+      alsoKnownAs: data.also_known_as ?? [],
+      homepage: data.homepage,
+      popularity: data.popularity ?? 0,
+      profilePath: data.profile_path,
+      imdbId: data.external_ids?.imdb_id ?? data.imdb_id ?? null,
+      instagramId: data.external_ids?.instagram_id ?? null,
+      twitterId: data.external_ids?.twitter_id ?? null,
+      facebookId: data.external_ids?.facebook_id ?? null,
+      photos,
+      credits,
+    }
   },
 }

@@ -274,6 +274,32 @@ const TitleDetailView = ({ details }: { details: TmdbMediaDetails }) => {
                   </div>
                 </div>
               ) : null}
+
+              {details.keywords.length ? (
+                <div className="mt-6">
+                  <p className="text-sm text-mute">Keywords</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {details.keywords.map((keyword) => {
+                      const params = new URLSearchParams({
+                        keyword: String(keyword.id),
+                        name: keyword.name,
+                      })
+
+                      return (
+                        <Link
+                          key={keyword.id}
+                          href={`/search?${params.toString()}`}
+                          aria-label={`Buscar títulos com a keyword ${keyword.name}`}
+                          tabIndex={0}
+                          className="rounded-full bg-surface-2 px-3 py-1 text-sm transition hover:bg-white/15 hover:text-white"
+                        >
+                          {keyword.name}
+                        </Link>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </section>
 
             {details.mediaType === 'TV' && details.seasons.length ? (

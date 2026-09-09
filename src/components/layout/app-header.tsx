@@ -101,6 +101,7 @@ export const AppHeader = () => {
     pathname === '/' ||
     pathname.startsWith('/discover') ||
     pathname.startsWith('/title/') ||
+    pathname.startsWith('/person/') ||
     pathname.startsWith('/upcoming') ||
     pathname.startsWith('/library') ||
     pathname.startsWith('/for-you') ||

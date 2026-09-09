@@ -181,8 +181,14 @@ export type TmdbDiscoverFilters = {
   primaryReleaseDateLte?: string
   firstAirDateGte?: string
   firstAirDateLte?: string
+  keywordId?: number
   /** How many TMDB pages to fetch (20 items each). Caps at 10. */
   maxPages?: number
+}
+
+export type TmdbKeyword = {
+  id: number
+  name: string
 }
 
 export type TmdbCredits = {
@@ -263,5 +269,37 @@ export type TmdbMediaDetails = TmdbMedia & {
   videos: TmdbVideo[]
   similar: TmdbMedia[]
   recommendations: TmdbMedia[]
+  keywords: TmdbKeyword[]
+}
+
+export type TmdbPersonCredit = TmdbMedia & {
+  character: string | null
+  job: string | null
+  department: string | null
+  episodeCount: number | null
+  popularity: number
+  creditKind: 'cast' | 'crew'
+}
+
+export type TmdbPersonDetails = {
+  id: number
+  name: string
+  biography: string
+  birthday: string | null
+  deathday: string | null
+  placeOfBirth: string | null
+  knownForDepartment: string | null
+  gender: number
+  biographyInEnglish: boolean
+  alsoKnownAs: string[]
+  homepage: string | null
+  popularity: number
+  profilePath: string | null
+  imdbId: string | null
+  instagramId: string | null
+  twitterId: string | null
+  facebookId: string | null
+  photos: string[]
+  credits: TmdbPersonCredit[]
 }
 

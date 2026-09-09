@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { IconExternal, IconHeart, IconHeartFill, IconPlay, IconStar } from '@/components/icons'
 import { StatusControl } from '@/components/library/status-control'
 import { useTitleLibrary } from '@/components/library/title-library-context'
@@ -24,12 +25,15 @@ const JOB_LABELS: Record<string, string> = {
 }
 
 const featuredCredits = (details: TmdbMediaDetails) => {
-  const rows: Array<{ label: string; names: string }> = []
+  const rows: Array<{
+    label: string
+    people: Array<{ id: number; name: string }>
+  }> = []
 
   if (details.createdBy.length) {
     rows.push({
       label: 'Criação',
-      names: details.createdBy.map((person) => person.name).join(', '),
+      people: details.createdBy,
     })
   }
 
@@ -40,7 +44,7 @@ const featuredCredits = (details: TmdbMediaDetails) => {
     if (rows.some((row) => row.label === label)) continue
     rows.push({
       label,
-      names: people.map((person) => person.name).join(', '),
+      people: people.map((person) => ({ id: person.id, name: person.name })),
     })
     if (rows.length >= 3) break
   }
@@ -176,7 +180,17 @@ export const TitleHero = ({ details, onPlayTrailer }: TitleHeroProps) => {
                   <div key={credit.label}>
                     <dt className="text-xs text-white/55">{credit.label}</dt>
                     <dd className="mt-0.5 text-sm font-medium text-white">
-                      {credit.names}
+                      {credit.people.map((person, index) => (
+                        <span key={`${person.id}-${person.name}`}>
+                          {index > 0 ? ', ' : null}
+                          <Link
+                            href={`/person/${person.id}`}
+                            className="transition hover:text-white/80 hover:underline hover:underline-offset-4"
+                          >
+                            {person.name}
+                          </Link>
+                        </span>
+                      ))}
                     </dd>
                   </div>
                 ))}
