@@ -304,9 +304,13 @@ export default function CalendarPage() {
         <div className="relative mx-auto w-full max-w-[1400px] px-4 pt-28 sm:px-8">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
-              <h1 className="font-display text-[clamp(2.75rem,8vw,5rem)] font-extrabold leading-[0.9] tracking-tight">
-                <span className="capitalize">{monthName(cursor)}</span>
-                <span className="ml-3 text-mute">{cursor.getFullYear()}</span>
+              <h1 className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-0 font-display font-extrabold leading-[0.9] tracking-tight">
+                <span className="capitalize text-[clamp(2rem,10vw,5rem)]">
+                  {monthName(cursor)}
+                </span>
+                <span className="text-[clamp(1.35rem,5.5vw,3.25rem)] text-mute">
+                  {cursor.getFullYear()}
+                </span>
               </h1>
               <p className="mt-3 max-w-xl text-mute">{filterSummary}</p>
             </div>

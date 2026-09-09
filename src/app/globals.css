@@ -55,6 +55,16 @@ a {
   text-decoration: none;
 }
 
+a.cta-light {
+  background-color: #f5f5f5;
+  color: #0b0b0b;
+}
+
+a.cta-light:hover {
+  background-color: #e8e8e8;
+  color: #0b0b0b;
+}
+
 button,
 input,
 select,
@@ -106,10 +116,10 @@ textarea {
 
 @keyframes kenburns {
   from {
-    transform: scale(1);
+    transform: scale(1.08);
   }
   to {
-    transform: scale(1.06);
+    transform: scale(1.16);
   }
 }
 
@@ -164,6 +174,14 @@ textarea {
   animation: catalog-in 320ms var(--ease-out-quart) both;
 }
 
+.menu-frost {
+  animation: catalog-in 280ms var(--ease-out-quart) both;
+}
+
+.menu-frost-list {
+  animation: rise 0.42s var(--ease-out-quart) both;
+}
+
 @keyframes hero-progress {
   from {
     transform: scaleX(0);
@@ -197,6 +215,8 @@ textarea {
   }
 
   .catalog-enter,
+  .menu-frost,
+  .menu-frost-list,
   .hero-copy-in,
   .hero-progress,
   .animate-rise,

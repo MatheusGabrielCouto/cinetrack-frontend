@@ -93,6 +93,7 @@ export const FilterBar = ({
 
       <Dropdown
         ariaLabel="Ordenar catálogo"
+        align="end"
         triggerClassName={triggerClass}
         trigger={<span>{sortLabel}</span>}
       >

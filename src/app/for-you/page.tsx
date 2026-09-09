@@ -176,7 +176,7 @@ export default function ForYouPage() {
       <div className="relative -mt-16 pb-20">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[460px] overflow-hidden">
           {featured?.media ? (
-            <div className="absolute inset-0 opacity-40">
+            <div className="absolute inset-x-0 top-0 h-[118%] opacity-40">
               <TmdbImage
                 path={featured.media.backdropPath ?? featured.media.posterPath}
                 alt=""
@@ -189,6 +189,7 @@ export default function ForYouPage() {
             </div>
           ) : null}
           <div className="absolute inset-0 bg-gradient-to-b from-bg/55 via-bg/88 to-bg" />
+          <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-bg to-transparent" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(229,9,20,0.18),_transparent_52%)]" />
         </div>
 
@@ -316,22 +317,25 @@ const FeaturedPick = ({ item }: { item: RecommendationItem }) => {
   return (
     <Link
       href={href}
-      className="group relative block overflow-hidden rounded-md bg-surface focus-visible:outline-none"
+      className="group relative block overflow-hidden rounded-md bg-bg focus-visible:outline-none"
       aria-label={`${media.title}. ${because}`}
       tabIndex={0}
     >
-      <article className="relative aspect-[16/10] sm:aspect-[21/9]">
-        <TmdbImage
-          path={media.backdropPath ?? media.posterPath}
-          alt=""
-          size="w1280"
-          fill
-          priority
-          sizes="(max-width: 1400px) 100vw, 1400px"
-          imgClassName="transition duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.03]"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/55 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-bg/80 via-transparent to-transparent" />
+      <article className="relative aspect-[16/10] overflow-hidden sm:aspect-[21/9]">
+        <div className="absolute inset-x-0 top-0 h-[118%]">
+          <TmdbImage
+            path={media.backdropPath ?? media.posterPath}
+            alt=""
+            size="w1280"
+            fill
+            priority
+            sizes="(max-width: 1400px) 100vw, 1400px"
+            imgClassName="object-cover object-top transition duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.04]"
+          />
+        </div>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-bg from-10% via-bg/70 to-transparent" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-bg via-bg/50 to-black/25" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-bg to-transparent" />
 
         <div className="absolute inset-x-0 bottom-0 p-5 sm:p-8">
           <h2 className="max-w-2xl font-display text-3xl font-bold leading-none tracking-tight sm:text-5xl">

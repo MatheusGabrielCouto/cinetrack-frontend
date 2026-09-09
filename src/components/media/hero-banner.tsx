@@ -15,21 +15,24 @@ export const HeroBanner = ({ media }: HeroBannerProps) => {
   const href = `/title/${media.mediaType.toLowerCase()}/${media.id}`
 
   return (
-    <section className="relative -mt-16 min-h-[78vh] w-full overflow-hidden sm:min-h-[85vh]">
-      <TmdbImage
-        path={media.backdropPath ?? media.posterPath}
-        alt=""
-        size="w1280"
-        fill
-        priority
-        sizes="100vw"
-        imgClassName="object-top hero-kenburns"
-      />
+    <section className="relative -mt-16 min-h-[78vh] w-full overflow-hidden bg-bg sm:min-h-[85vh]">
+      <div className="absolute inset-x-0 top-0 h-[115%]">
+        <TmdbImage
+          path={media.backdropPath ?? media.posterPath}
+          alt=""
+          size="w1280"
+          fill
+          priority
+          sizes="100vw"
+          imgClassName="object-cover object-top hero-kenburns"
+        />
+      </div>
 
-      <div className="absolute inset-0 bg-gradient-to-r from-bg via-bg/80 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-t from-bg via-transparent to-bg/40" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-bg from-10% via-bg/75 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-bg via-bg/55 to-black/40" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-bg to-transparent" />
 
-      <div className="relative mx-auto flex min-h-[78vh] w-full max-w-[1400px] flex-col justify-end px-4 pb-20 pt-36 sm:min-h-[85vh] sm:px-8 sm:pb-28">
+      <div className="relative mx-auto flex min-h-[78vh] w-full max-w-[1400px] flex-col justify-end px-4 pb-24 pt-36 sm:min-h-[85vh] sm:px-8 sm:pb-28">
         <h1 className="animate-rise max-w-3xl font-display text-4xl font-bold leading-none tracking-tight sm:text-6xl md:text-7xl">
           {media.title}
         </h1>

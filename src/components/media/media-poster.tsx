@@ -12,6 +12,7 @@ type MediaPosterProps = {
   media: TmdbMedia
   badge?: string
   compact?: boolean
+  fill?: boolean
   href?: string
 }
 
@@ -19,6 +20,7 @@ export const MediaPoster = ({
   media,
   badge,
   compact = false,
+  fill = false,
   href,
 }: MediaPosterProps) => {
   const resolvedHref =
@@ -28,8 +30,12 @@ export const MediaPoster = ({
     <Link
       href={resolvedHref}
       className={cn(
-        'group relative block shrink-0 focus-visible:outline-none',
-        compact ? 'w-[130px] sm:w-[150px]' : 'w-[140px] sm:w-[170px] md:w-[190px]',
+        'group relative block min-w-0 focus-visible:outline-none',
+        fill
+          ? 'w-full sm:w-[170px] md:w-[190px] sm:shrink-0'
+          : compact
+            ? 'w-[130px] shrink-0 sm:w-[150px]'
+            : 'w-[140px] shrink-0 sm:w-[170px] md:w-[190px]',
       )}
       aria-label={`Detalhes de ${media.title}`}
       tabIndex={0}

@@ -266,7 +266,7 @@ export default function LibraryPage() {
               {featuredContinue?.media ? (
                 <Link
                   href={`/title/${featuredContinue.mediaType.toLowerCase()}/${featuredContinue.tmdbId}`}
-                  className="mt-5 inline-flex h-11 max-w-full items-center gap-2 rounded bg-ink px-4 text-sm font-semibold text-bg transition hover:bg-ink/90"
+                  className="cta-light mt-5 inline-flex h-11 max-w-full items-center gap-2 rounded px-4 text-sm font-semibold transition"
                   aria-label={`Continuar ${featuredContinue.media.title}`}
                   tabIndex={0}
                 >
@@ -358,7 +358,7 @@ export default function LibraryPage() {
               ))}
             </div>
 
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 flex gap-2 overflow-x-auto overflow-y-hidden hide-scrollbar">
               {TYPE_PILLS.map((pill) => (
                 <button
                   key={pill.id}
@@ -366,9 +366,9 @@ export default function LibraryPage() {
                   onClick={() => handleMediaTypeChange(pill.id)}
                   aria-pressed={mediaType === pill.id}
                   className={cn(
-                    'min-h-9 rounded-full border px-3.5 text-sm transition duration-200',
+                    'min-h-9 shrink-0 whitespace-nowrap rounded-full border px-3.5 text-sm transition duration-200',
                     mediaType === pill.id
-                      ? 'border-ink bg-ink text-bg'
+                      ? 'border-ink bg-ink text-black'
                       : 'border-line text-mute hover:text-ink',
                   )}
                 >
@@ -380,14 +380,16 @@ export default function LibraryPage() {
                 onClick={handleFavoriteToggle}
                 aria-pressed={favoriteOnly}
                 className={cn(
-                  'min-h-9 rounded-full border px-3.5 text-sm transition duration-200',
+                  'min-h-9 shrink-0 whitespace-nowrap rounded-full border px-3.5 text-sm transition duration-200',
                   favoriteOnly
                     ? 'border-spot bg-spot/20 text-ink'
                     : 'border-line text-mute hover:text-ink',
                 )}
               >
                 Favoritos
-                {!isLoading && counts.favorites > 0 ? ` · ${counts.favorites}` : ''}
+                {!isLoading && counts.favorites > 0 ? (
+                  <span className="tabular-nums"> · {counts.favorites}</span>
+                ) : null}
               </button>
             </div>
           </div>

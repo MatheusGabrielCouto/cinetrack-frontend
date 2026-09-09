@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { RequireAuth } from '@/components/auth/require-auth'
+import { TmdbImage } from '@/components/media/tmdb-image'
 import { MediaPoster } from '@/components/media/media-poster'
 import { Button } from '@/components/ui/button'
 import { libraryApi, statsApi } from '@/lib/api/cinetrack'
@@ -15,6 +16,12 @@ type EnrichedItem = LibraryItem & {
   media: TmdbMedia | null
   details: TmdbMediaDetails | null
 }
+
+const LINKS = [
+  { href: '/achievements', label: 'Conquistas' },
+  { href: '/wrapped', label: 'Wrapped' },
+  { href: '/library', label: 'Minha lista' },
+]
 
 const percent = (part: number, total: number) => {
   if (total <= 0) return 0
@@ -33,7 +40,7 @@ const ProgressBar = ({
   const width = max > 0 ? Math.max((value / max) * 100, value > 0 ? 4 : 0) : 0
 
   return (
-    <div className="h-2.5 overflow-hidden rounded-full bg-surface-2">
+    <div className="h-2 overflow-hidden rounded-full bg-white/10">
       <div
         className={cn('h-full rounded-full transition-all duration-700 ease-out', colorClass)}
         style={{ width: `${width}%` }}
@@ -56,12 +63,12 @@ const HorizontalBars = ({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {data.map((item) => (
         <div key={item.label}>
-          <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+          <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
             <span className="truncate font-medium">{item.label}</span>
-            <span className="shrink-0 text-mute">{item.value}</span>
+            <span className="shrink-0 tabular-nums text-mute">{item.value}</span>
           </div>
           <ProgressBar value={item.value} max={max} colorClass={colorClass} />
         </div>
@@ -75,6 +82,7 @@ export default function StatsPage() {
   const [library, setLibrary] = useState<EnrichedItem[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     const load = async () => {
@@ -121,7 +129,7 @@ export default function StatsPage() {
     }
 
     void load()
-  }, [])
+  }, [reloadKey])
 
   const favorites = useMemo(
     () => library.filter((item) => item.isFavorite).slice(0, 12),
@@ -131,11 +139,20 @@ export default function StatsPage() {
   const topRated = useMemo(
     () =>
       [...library]
-        .filter((item) => item.rating !== null)
+        .filter((item) => item.rating !== null && item.media)
         .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
-        .slice(0, 8),
+        .slice(0, 10),
     [library],
   )
+
+  const heroMedia = useMemo(() => {
+    return (
+      favorites.find((item) => item.media)?.media ??
+      topRated[0]?.media ??
+      library.find((item) => item.media)?.media ??
+      null
+    )
+  }, [favorites, library, topRated])
 
   const completion = useMemo(() => {
     if (!stats || stats.totalItems === 0) return 0
@@ -144,28 +161,24 @@ export default function StatsPage() {
 
   const statusBars = useMemo(() => {
     if (!stats) return []
-    const max = Math.max(stats.watched, stats.watching, stats.wantToWatch, 1)
 
     return [
       {
         label: 'Assistidos',
         value: stats.watched,
         pct: percent(stats.watched, stats.totalItems),
-        max,
         color: 'bg-ok',
       },
       {
         label: 'Assistindo',
         value: stats.watching,
         pct: percent(stats.watching, stats.totalItems),
-        max,
         color: 'bg-spot',
       },
       {
         label: 'Quero assistir',
         value: stats.wantToWatch,
         pct: percent(stats.wantToWatch, stats.totalItems),
-        max,
         color: 'bg-accent',
       },
     ]
@@ -226,7 +239,7 @@ export default function StatsPage() {
 
   const ratingDistribution = useMemo(() => {
     const buckets = Array.from({ length: 10 }, (_, index) => ({
-      label: String(index + 1),
+      label: `${index + 1}`,
       value: 0,
     }))
     library.forEach((item) => {
@@ -236,236 +249,320 @@ export default function StatsPage() {
     return buckets.filter((bucket) => bucket.value > 0)
   }, [library])
 
+  const summary = stats
+    ? [
+        `${stats.totalItems} ${stats.totalItems === 1 ? 'título' : 'títulos'}`,
+        `${completion}% assistido`,
+        formatRuntime(watchTimeMinutes),
+        byGenre[0] ? byGenre[0].label : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : 'Gráficos da sua lista: ano, gênero, notas e tempo assistido.'
+
+  const handleRetry = () => {
+    setReloadKey((value) => value + 1)
+  }
+
   return (
     <RequireAuth>
-      <div className="mx-auto w-full max-w-[1400px] px-4 py-10 sm:px-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
-              Dashboard
-            </p>
-            <h1 className="mt-2 font-display text-3xl font-bold tracking-tight sm:text-5xl">
-              Estatísticas
-            </h1>
-            <p className="mt-2 max-w-xl text-mute">
-              Gráficos da sua lista: ano, gênero, notas e tempo assistido.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Link href="/achievements">
-              <Button variant="ghost">Conquistas</Button>
-            </Link>
-            <Link href="/wrapped">
-              <Button variant="ghost">Wrapped</Button>
-            </Link>
-            <Link href="/library">
-              <Button variant="ghost">Ver minha lista</Button>
-            </Link>
-          </div>
+      <div className="relative -mt-16 pb-20">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] overflow-hidden">
+          {heroMedia ? (
+            <div className="absolute inset-0 opacity-40">
+              <TmdbImage
+                path={heroMedia.backdropPath ?? heroMedia.posterPath}
+                alt=""
+                size="w1280"
+                fill
+                priority
+                sizes="100vw"
+                imgClassName="object-cover object-top"
+              />
+            </div>
+          ) : null}
+          <div className="absolute inset-0 bg-gradient-to-b from-bg/55 via-bg/88 to-bg" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(229,9,20,0.18),_transparent_52%)]" />
         </div>
 
-        {isLoading ? (
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, index) => (
-              <div
-                key={index}
-                className="h-36 animate-pulse rounded-xl border border-line bg-surface"
-              />
+        <div className="relative mx-auto w-full max-w-[1400px] px-4 pt-28 sm:px-8">
+          <div className="min-w-0">
+            <h1 className="font-display text-[clamp(2.35rem,10vw,5rem)] font-extrabold leading-[0.9] tracking-tight">
+              Estatísticas
+            </h1>
+            <p className="mt-4 max-w-xl text-base leading-relaxed text-mute">
+              {isLoading ? 'Carregando a sua lista…' : summary}
+            </p>
+          </div>
+
+          <div className="mt-6 flex gap-2 overflow-x-auto overflow-y-hidden pb-1 hide-scrollbar">
+            {LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="inline-flex min-h-10 shrink-0 items-center rounded-full border border-line px-4 text-sm text-mute transition hover:border-mute hover:text-ink"
+              >
+                {link.label}
+              </Link>
             ))}
           </div>
-        ) : error ? (
-          <p className="mt-10 text-sm text-accent">{error}</p>
-        ) : !stats || stats.totalItems === 0 ? (
-          <div className="mt-10 rounded-xl border border-dashed border-line bg-surface p-10 text-center">
-            <h2 className="font-display text-2xl font-semibold">
-              Sua lista ainda está vazia
-            </h2>
-            <p className="mx-auto mt-2 max-w-md text-mute">
-              Adicione filmes e séries para ver progresso, notas e favoritos por
-              aqui.
-            </p>
-            <Link href="/discover" className="mt-6 inline-block">
-              <Button>Explorar catálogo</Button>
-            </Link>
-          </div>
-        ) : (
-          <div className="mt-10 space-y-8">
-            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <article className="rounded-xl border border-line bg-gradient-to-br from-accent/20 via-surface to-surface p-6">
-                <p className="text-sm text-mute">Total na lista</p>
-                <p className="mt-3 font-display text-5xl font-bold tracking-tight">
-                  {stats.totalItems}
-                </p>
-                <p className="mt-2 text-sm text-mute">
-                  {stats.movies} filmes · {stats.tvShows} séries
-                </p>
-              </article>
 
-              <article className="rounded-xl border border-line bg-surface p-6">
-                <p className="text-sm text-mute">Progresso assistido</p>
-                <p className="mt-3 font-display text-5xl font-bold tracking-tight text-ok">
-                  {completion}%
-                </p>
-                <div className="mt-4">
-                  <ProgressBar
-                    value={stats.watched}
-                    max={stats.totalItems}
-                    colorClass="bg-ok"
+          {isLoading ? (
+            <div className="mt-10 space-y-8">
+              <div className="flex gap-3 overflow-hidden">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="h-28 min-w-[200px] flex-1 animate-pulse rounded-lg bg-surface-2"
                   />
-                </div>
-                <p className="mt-2 text-sm text-mute">
-                  {stats.watched} de {stats.totalItems} títulos
-                </p>
-              </article>
+                ))}
+              </div>
+              <div className="h-64 animate-pulse rounded-lg bg-surface-2" />
+            </div>
+          ) : error ? (
+            <div className="mt-10 border border-dashed border-line bg-surface/40 p-6">
+              <p className="text-sm text-accent" role="alert">
+                {error}
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-4"
+                onClick={handleRetry}
+              >
+                Tentar de novo
+              </Button>
+            </div>
+          ) : !stats || stats.totalItems === 0 ? (
+            <div className="mt-10 border border-dashed border-line bg-surface/40 px-6 py-14 text-center">
+              <h2 className="font-display text-2xl font-semibold tracking-tight">
+                Sua lista ainda está vazia
+              </h2>
+              <p className="mx-auto mt-3 max-w-md text-mute">
+                Adicione filmes e séries para ver progresso, notas e favoritos
+                por aqui.
+              </p>
+              <Link href="/discover" className="mt-6 inline-block">
+                <Button>Explorar catálogo</Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="mt-10 space-y-12">
+              <section
+                className="hide-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-4"
+                aria-label="Resumo"
+              >
+                <article className="min-w-[210px] shrink-0 rounded-lg bg-surface p-5 sm:min-w-0">
+                  <p className="text-sm text-mute">Na lista</p>
+                  <p className="mt-3 font-display text-5xl font-extrabold tracking-tight">
+                    {stats.totalItems}
+                  </p>
+                  <p className="mt-2 text-sm text-mute">
+                    {stats.movies} filmes · {stats.tvShows} séries
+                  </p>
+                </article>
 
-              <article className="rounded-xl border border-line bg-surface p-6">
-                <p className="text-sm text-mute">Nota média</p>
-                <p className="mt-3 font-display text-5xl font-bold tracking-tight text-spot">
-                  {formatRating(stats.averageRating)}
-                </p>
-                <p className="mt-2 text-sm text-mute">
-                  {stats.averageRating === null
-                    ? 'Ainda sem notas salvas'
-                    : 'Média das suas avaliações'}
-                </p>
-              </article>
+                <article className="min-w-[210px] shrink-0 rounded-lg bg-surface p-5 sm:min-w-0">
+                  <p className="text-sm text-mute">Assistido</p>
+                  <p className="mt-3 font-display text-5xl font-extrabold tracking-tight text-ok">
+                    {completion}%
+                  </p>
+                  <div className="mt-4">
+                    <ProgressBar
+                      value={stats.watched}
+                      max={stats.totalItems}
+                      colorClass="bg-ok"
+                    />
+                  </div>
+                  <p className="mt-2 text-sm text-mute">
+                    {stats.watched} de {stats.totalItems}
+                  </p>
+                </article>
 
-              <article className="rounded-xl border border-line bg-surface p-6">
-                <p className="text-sm text-mute">Tempo assistido</p>
-                <p className="mt-3 font-display text-4xl font-bold tracking-tight text-accent">
-                  {formatRuntime(watchTimeMinutes) ?? '0min'}
-                </p>
-                <p className="mt-2 text-sm text-mute">
-                  Estimativa com base no runtime TMDB
-                </p>
-              </article>
-            </section>
+                <article className="min-w-[210px] shrink-0 rounded-lg bg-surface p-5 sm:min-w-0">
+                  <p className="text-sm text-mute">Nota média</p>
+                  <p className="mt-3 font-display text-5xl font-extrabold tracking-tight text-spot">
+                    {formatRating(stats.averageRating)}
+                  </p>
+                  <p className="mt-2 text-sm text-mute">
+                    {stats.averageRating === null
+                      ? 'Ainda sem notas'
+                      : 'Das suas avaliações'}
+                  </p>
+                </article>
 
-            <section className="grid gap-4 lg:grid-cols-2">
-              <article className="rounded-xl border border-line bg-surface p-6">
-                <h2 className="text-xl font-semibold">Por ano de lançamento</h2>
-                <p className="mt-1 text-sm text-mute">Distribuição da sua lista</p>
-                <div className="mt-6">
-                  <HorizontalBars data={byYear} colorClass="bg-accent" />
-                </div>
-              </article>
+                <article className="min-w-[210px] shrink-0 rounded-lg bg-surface p-5 sm:min-w-0">
+                  <p className="text-sm text-mute">Tempo</p>
+                  <p className="mt-3 font-display text-4xl font-extrabold tracking-tight text-accent sm:text-5xl">
+                    {formatRuntime(watchTimeMinutes) ?? '0min'}
+                  </p>
+                  <p className="mt-2 text-sm text-mute">Estimativa TMDB</p>
+                </article>
+              </section>
 
-              <article className="rounded-xl border border-line bg-surface p-6">
-                <h2 className="text-xl font-semibold">Por gênero</h2>
-                <p className="mt-1 text-sm text-mute">Gêneros que mais aparecem</p>
-                <div className="mt-6">
-                  <HorizontalBars data={byGenre} colorClass="bg-spot" />
-                </div>
-              </article>
-            </section>
+              <section className="grid gap-10 lg:grid-cols-2">
+                <article>
+                  <h2 className="font-display text-2xl font-semibold tracking-tight">
+                    Status da lista
+                  </h2>
+                  <p className="mt-1 text-sm text-mute">
+                    Como seus títulos estão agora
+                  </p>
 
-            <section className="grid gap-4 lg:grid-cols-2">
-              <article className="rounded-xl border border-line bg-surface p-6">
-                <h2 className="text-xl font-semibold">Distribuição de notas</h2>
-                <p className="mt-1 text-sm text-mute">Quantas vezes você deu cada nota</p>
-                <div className="mt-6">
-                  <HorizontalBars data={ratingDistribution} colorClass="bg-ok" />
-                </div>
-              </article>
+                  <div className="mt-5 flex h-3 overflow-hidden rounded-full bg-white/10">
+                    {statusBars.map((bar) =>
+                      bar.pct > 0 ? (
+                        <div
+                          key={bar.label}
+                          className={cn('h-full', bar.color)}
+                          style={{ width: `${bar.pct}%` }}
+                          title={`${bar.label}: ${bar.pct}%`}
+                        />
+                      ) : null,
+                    )}
+                  </div>
 
-              <article className="rounded-xl border border-line bg-surface p-6">
-                <h2 className="text-xl font-semibold">Status da lista</h2>
-                <p className="mt-1 text-sm text-mute">
-                  Como seus títulos estão distribuídos
-                </p>
-                <div className="mt-6 space-y-5">
-                  {statusBars.map((bar) => (
-                    <div key={bar.label}>
-                      <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                        <span className="font-medium">{bar.label}</span>
-                        <span className="text-mute">
+                  <ul className="mt-5 space-y-3">
+                    {statusBars.map((bar) => (
+                      <li
+                        key={bar.label}
+                        className="flex items-center justify-between gap-3 text-sm"
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <span
+                            className={cn('size-2.5 rounded-full', bar.color)}
+                          />
+                          {bar.label}
+                        </span>
+                        <span className="tabular-nums text-mute">
                           {bar.value} · {bar.pct}%
                         </span>
-                      </div>
-                      <ProgressBar
-                        value={bar.value}
-                        max={bar.max}
-                        colorClass={bar.color}
-                      />
-                    </div>
-                  ))}
-                </div>
+                      </li>
+                    ))}
+                  </ul>
 
-                <div className="mt-6 flex items-end gap-6">
-                  <div className="flex-1">
-                    <div className="flex h-28 items-end rounded-lg bg-surface-2 p-3">
-                      <div
-                        className="w-full rounded-md bg-accent transition-all duration-700"
-                        style={{
-                          height: `${Math.max(mediaSplit.moviesPct, stats.movies > 0 ? 8 : 0)}%`,
-                        }}
-                      />
+                  <div className="mt-8">
+                    <h3 className="text-sm font-medium text-mute">
+                      Filmes e séries
+                    </h3>
+                    <div className="mt-3 flex h-3 overflow-hidden rounded-full bg-white/10">
+                      {mediaSplit.moviesPct > 0 ? (
+                        <div
+                          className="h-full bg-accent"
+                          style={{ width: `${mediaSplit.moviesPct}%` }}
+                        />
+                      ) : null}
+                      {mediaSplit.tvPct > 0 ? (
+                        <div
+                          className="h-full bg-spot"
+                          style={{ width: `${mediaSplit.tvPct}%` }}
+                        />
+                      ) : null}
                     </div>
-                    <p className="mt-2 text-sm font-semibold">Filmes</p>
+                    <div className="mt-3 flex gap-5 text-sm text-mute">
+                      <span>
+                        <span className="text-ink">{stats.movies}</span> filmes
+                        · {mediaSplit.moviesPct}%
+                      </span>
+                      <span>
+                        <span className="text-ink">{stats.tvShows}</span> séries
+                        · {mediaSplit.tvPct}%
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <div className="flex h-28 items-end rounded-lg bg-surface-2 p-3">
-                      <div
-                        className="w-full rounded-md bg-spot transition-all duration-700"
-                        style={{
-                          height: `${Math.max(mediaSplit.tvPct, stats.tvShows > 0 ? 8 : 0)}%`,
-                        }}
-                      />
-                    </div>
-                    <p className="mt-2 text-sm font-semibold">Séries</p>
+                </article>
+
+                <article>
+                  <h2 className="font-display text-2xl font-semibold tracking-tight">
+                    Distribuição de notas
+                  </h2>
+                  <p className="mt-1 text-sm text-mute">
+                    Quantas vezes você deu cada nota
+                  </p>
+                  <div className="mt-6">
+                    <HorizontalBars
+                      data={ratingDistribution}
+                      colorClass="bg-ok"
+                    />
                   </div>
-                </div>
-              </article>
-            </section>
-
-            {topRated.length > 0 ? (
-              <section className="rounded-xl border border-line bg-surface p-6">
-                <h2 className="text-xl font-semibold">Suas melhores notas</h2>
-                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {topRated.map((item, index) => (
-                    <Link
-                      key={item.id}
-                      href={
-                        item.media
-                          ? `/title/${item.media.mediaType.toLowerCase()}/${item.media.id}`
-                          : '/library'
-                      }
-                      className="rounded-lg border border-line bg-surface-2 p-4 transition hover:border-mute"
-                    >
-                      <p className="text-xs text-mute">#{index + 1}</p>
-                      <p className="mt-1 line-clamp-2 font-semibold">
-                        {item.media?.title ?? `TMDB #${item.tmdbId}`}
-                      </p>
-                      <p className="mt-2 text-sm text-spot">
-                        ★ {formatRating(item.rating)}
-                      </p>
-                    </Link>
-                  ))}
-                </div>
+                </article>
               </section>
-            ) : null}
 
-            {favorites.length > 0 ? (
-              <section>
-                <div className="mb-4 px-1">
-                  <h2 className="text-xl font-semibold">Favoritos</h2>
-                </div>
-                <div className="hide-scrollbar flex gap-3 overflow-x-auto pb-2">
-                  {favorites.map((item) =>
-                    item.media ? (
-                      <MediaPoster
-                        key={item.id}
-                        media={item.media}
-                        badge="Favorito"
-                        compact
-                      />
-                    ) : null,
-                  )}
-                </div>
+              <section className="grid gap-10 lg:grid-cols-2">
+                <article>
+                  <h2 className="font-display text-2xl font-semibold tracking-tight">
+                    Por ano
+                  </h2>
+                  <p className="mt-1 text-sm text-mute">
+                    Lançamento dos títulos na lista
+                  </p>
+                  <div className="mt-6">
+                    <HorizontalBars data={byYear} colorClass="bg-accent" />
+                  </div>
+                </article>
+
+                <article>
+                  <h2 className="font-display text-2xl font-semibold tracking-tight">
+                    Por gênero
+                  </h2>
+                  <p className="mt-1 text-sm text-mute">
+                    O que mais aparece na sua lista
+                  </p>
+                  <div className="mt-6">
+                    <HorizontalBars data={byGenre} colorClass="bg-spot" />
+                  </div>
+                </article>
               </section>
-            ) : null}
-          </div>
-        )}
+
+              {topRated.length > 0 ? (
+                <section>
+                  <h2 className="font-display text-2xl font-semibold tracking-tight">
+                    Suas melhores notas
+                  </h2>
+                  <p className="mt-1 text-sm text-mute">
+                    Os títulos que você mais curtiu
+                  </p>
+                  <div className="hide-scrollbar -mx-4 mt-5 flex gap-4 overflow-x-auto px-4 pb-2 sm:-mx-8 sm:px-8">
+                    {topRated.map((item) =>
+                      item.media ? (
+                        <MediaPoster
+                          key={item.id}
+                          media={item.media}
+                          compact
+                          badge={`★ ${formatRating(item.rating)}`}
+                        />
+                      ) : null,
+                    )}
+                  </div>
+                </section>
+              ) : null}
+
+              {favorites.length > 0 ? (
+                <section>
+                  <h2 className="font-display text-2xl font-semibold tracking-tight">
+                    Favoritos
+                  </h2>
+                  <p className="mt-1 text-sm text-mute">
+                    {stats.favorites}{' '}
+                    {stats.favorites === 1 ? 'título salvo' : 'títulos salvos'}
+                  </p>
+                  <div className="hide-scrollbar -mx-4 mt-5 flex gap-4 overflow-x-auto px-4 pb-2 sm:-mx-8 sm:px-8">
+                    {favorites.map((item) =>
+                      item.media ? (
+                        <MediaPoster
+                          key={item.id}
+                          media={item.media}
+                          compact
+                          badge="Favorito"
+                        />
+                      ) : null,
+                    )}
+                  </div>
+                </section>
+              ) : null}
+            </div>
+          )}
+        </div>
       </div>
     </RequireAuth>
   )

@@ -302,7 +302,7 @@ export default function DiscoverPage() {
           {catalog.hero ? <HeroBanner media={catalog.hero} /> : null}
         </div>
 
-        <div className={catalog.hero ? '-mt-10 relative z-10' : 'pt-8'}>
+        <div className={catalog.hero ? '-mt-16 relative z-10' : 'pt-8'}>
           <FilterBar
             contentFilter={contentFilter}
             onContentFilterChange={handleContentFilterChange}
