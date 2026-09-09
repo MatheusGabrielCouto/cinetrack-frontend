@@ -8,6 +8,7 @@ import { TmdbImage } from '@/components/media/tmdb-image'
 import { listsApi } from '@/lib/api/cinetrack'
 import { ApiError } from '@/lib/api/client'
 import { tmdbApi } from '@/lib/tmdb/client'
+import { toDisplayAssetUrl } from '@/lib/utils'
 import type { ListDetail, TmdbMedia } from '@/types'
 
 type EnrichedItem = ListDetail['items'][number] & {
@@ -82,7 +83,11 @@ export default function PublicListSharePage() {
                 isTmdbPath(cover) ? (
                   <TmdbImage path={cover} alt="" size="w780" fill sizes="1400px" />
                 ) : (
-                  <img src={cover} alt="" className="h-full w-full object-cover" />
+                  <img
+                    src={toDisplayAssetUrl(cover)}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
                 )
               ) : fallbackPoster ? (
                 <TmdbImage

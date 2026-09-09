@@ -30,7 +30,7 @@ import { ImageUploadField } from '@/components/ui/image-upload-field'
 import { listsApi } from '@/lib/api/cinetrack'
 import { ApiError } from '@/lib/api/client'
 import { tmdbApi } from '@/lib/tmdb/client'
-import { cn } from '@/lib/utils'
+import { cn, toDisplayAssetUrl } from '@/lib/utils'
 import type { ListDetail, TmdbMedia } from '@/types'
 
 type EnrichedItem = ListDetail['items'][number] & {
@@ -312,7 +312,7 @@ export default function ListDetailPage() {
                     />
                   ) : (
                     <img
-                      src={cover}
+                      src={toDisplayAssetUrl(cover)}
                       alt=""
                       className="h-full w-full object-cover"
                     />

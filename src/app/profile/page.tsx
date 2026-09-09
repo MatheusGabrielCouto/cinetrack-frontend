@@ -79,7 +79,10 @@ export default function ProfilePage() {
 
   const isDirty = useMemo(() => {
     if (!user) return false
-    return name.trim() !== user.name || (avatar.trim() || null) !== user.avatar
+    const persistedAvatar = avatar.trim().startsWith('blob:')
+      ? (user.avatar ?? '')
+      : avatar.trim()
+    return name.trim() !== user.name || (persistedAvatar || null) !== user.avatar
   }, [avatar, name, user])
 
   const handleSave = async (event: FormEvent) => {
