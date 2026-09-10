@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { tmdbApi, type TmdbGenre } from '@/lib/tmdb/client'
 import { cn, formatYear } from '@/lib/utils'
-import type { MediaType, TmdbCollectionSummary, TmdbMedia } from '@/types'
+import type { MediaType, TmdbCollectionSummary, TmdbDiscoverFilters, TmdbMedia } from '@/types'
 
 const LANGUAGES = [
   { value: '', label: 'Qualquer idioma' },
@@ -109,6 +109,148 @@ const QUICK_PRESETS: QuickPreset[] = [
 const fieldClass =
   'h-11 w-full rounded-lg border border-line bg-surface-2 px-3 text-ink placeholder:text-mute/70 transition focus:border-accent'
 
+type SearchRequest = {
+  query: string
+  mediaType: MediaType | 'ALL'
+  year: string
+  minRating: string
+  language: string
+  genreId: string
+  country: string
+  runtimePreset: RuntimePreset
+  keywordId: string
+  collectionId: string
+  sortBy: string
+}
+
+const runtimeBounds = (preset: RuntimePreset) => {
+  if (preset === 'short') return { min: undefined, max: 100 }
+  if (preset === 'medium') return { min: 100, max: 140 }
+  if (preset === 'long') return { min: 140, max: undefined }
+  return { min: undefined, max: undefined }
+}
+
+const mergeMedia = (current: TmdbMedia[], incoming: TmdbMedia[]) => {
+  const seen = new Set(current.map((item) => `${item.mediaType}-${item.id}`))
+  const next = [...current]
+
+  for (const item of incoming) {
+    const key = `${item.mediaType}-${item.id}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    next.push(item)
+  }
+
+  return next
+}
+
+const discoverFiltersFromRequest = (
+  request: SearchRequest,
+  mediaType: MediaType,
+): TmdbDiscoverFilters => {
+  const runtime = runtimeBounds(request.runtimePreset)
+
+  return {
+    mediaType,
+    year: request.year ? Number(request.year) : undefined,
+    voteAverageGte: request.minRating ? Number(request.minRating) : undefined,
+    language: request.language || undefined,
+    genreId: request.genreId ? Number(request.genreId) : undefined,
+    runtimeGte: runtime.min,
+    runtimeLte: runtime.max,
+    country: request.country || undefined,
+    keywordId: request.keywordId ? Number(request.keywordId) : undefined,
+    sortBy: request.sortBy,
+  }
+}
+
+const fetchResultPage = async (request: SearchRequest, page: number) => {
+  if (request.collectionId) {
+    const saga = await tmdbApi.collection(Number(request.collectionId))
+    return {
+      items: saga.parts,
+      collections: [] as TmdbCollectionSummary[],
+      collection: saga,
+      totalPages: 1,
+      paginate: false,
+    }
+  }
+
+  const query = request.query.trim()
+  const extraFilters = Boolean(
+    request.year ||
+      request.minRating ||
+      request.language ||
+      request.genreId ||
+      request.country ||
+      request.runtimePreset ||
+      request.keywordId,
+  )
+
+  if (query) {
+    const type = request.mediaType === 'ALL' ? 'all' : request.mediaType
+    const [titles, sagas] = await Promise.all([
+      tmdbApi.search(query, type, page),
+      page === 1 && request.mediaType !== 'TV'
+        ? tmdbApi.searchCollections(query)
+        : Promise.resolve([] as TmdbCollectionSummary[]),
+    ])
+
+    return {
+      items: titles.items,
+      collections: sagas,
+      collection: null,
+      totalPages: titles.totalPages,
+      paginate: true,
+    }
+  }
+
+  if (!extraFilters && request.mediaType === 'ALL') {
+    const trend = await tmdbApi.trendingPage('all', page)
+    return {
+      items: trend.items,
+      collections: [] as TmdbCollectionSummary[],
+      collection: null,
+      totalPages: trend.totalPages,
+      paginate: true,
+    }
+  }
+
+  if (request.mediaType === 'ALL') {
+    const [movies, series] = await Promise.all([
+      tmdbApi.discoverPage({
+        ...discoverFiltersFromRequest(request, 'MOVIE'),
+        page,
+      }),
+      tmdbApi.discoverPage({
+        ...discoverFiltersFromRequest(request, 'TV'),
+        page,
+      }),
+    ])
+
+    return {
+      items: [...movies.items, ...series.items],
+      collections: [] as TmdbCollectionSummary[],
+      collection: null,
+      totalPages: Math.max(movies.totalPages, series.totalPages),
+      paginate: true,
+    }
+  }
+
+  const discovered = await tmdbApi.discoverPage({
+    ...discoverFiltersFromRequest(request, request.mediaType),
+    page,
+  })
+
+  return {
+    items: discovered.items,
+    collections: [] as TmdbCollectionSummary[],
+    collection: null,
+    totalPages: discovered.totalPages,
+    paginate: true,
+  }
+}
+
 export default function SearchPage() {
   return (
     <RequireAuth>
@@ -161,6 +303,16 @@ const SearchContent = () => {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [enterKey, setEnterKey] = useState(0)
+  const [canPaginate, setCanPaginate] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const requestRef = useRef<SearchRequest | null>(null)
+  const pageRef = useRef(1)
+  const totalPagesRef = useRef(1)
+  const canPaginateRef = useRef(false)
+  const loadingMoreRef = useRef(false)
+  const searchIdRef = useRef(0)
+  const loadMoreRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -275,128 +427,120 @@ const SearchContent = () => {
     collectionId?: string
     collectionName?: string
   }) => {
-    const nextQuery = overrides?.query ?? query
-    const nextType = overrides?.mediaType ?? mediaType
-    const nextYear = overrides?.year ?? year
-    const nextRating = overrides?.minRating ?? minRating
-    const nextLanguage = overrides?.language ?? language
-    const nextGenreId = overrides?.genreId ?? genreId
-    const nextCountry = overrides?.country ?? country
-    const nextRuntime = overrides?.runtimePreset ?? runtimePreset
-    const nextKeywordId = overrides?.keywordId ?? keywordId
-    const nextCollectionId = overrides?.collectionId ?? collectionId
+    const request: SearchRequest = {
+      query: overrides?.query ?? query,
+      mediaType: overrides?.mediaType ?? mediaType,
+      year: overrides?.year ?? year,
+      minRating: overrides?.minRating ?? minRating,
+      language: overrides?.language ?? language,
+      genreId: overrides?.genreId ?? genreId,
+      country: overrides?.country ?? country,
+      runtimePreset: overrides?.runtimePreset ?? runtimePreset,
+      keywordId: overrides?.keywordId ?? keywordId,
+      collectionId: overrides?.collectionId ?? collectionId,
+      sortBy,
+    }
 
-    const runtime =
-      nextRuntime === 'short'
-        ? { min: undefined, max: 100 }
-        : nextRuntime === 'medium'
-          ? { min: 100, max: 140 }
-          : nextRuntime === 'long'
-            ? { min: 140, max: undefined }
-            : { min: undefined, max: undefined }
-
-    const filtersOn = Boolean(
-      nextYear ||
-        nextRating ||
-        nextLanguage ||
-        nextGenreId ||
-        nextCountry ||
-        nextRuntime ||
-        nextKeywordId ||
-        nextType !== 'ALL',
-    )
+    const searchId = searchIdRef.current + 1
+    searchIdRef.current = searchId
+    requestRef.current = request
+    pageRef.current = 1
+    totalPagesRef.current = 1
+    canPaginateRef.current = false
+    loadingMoreRef.current = false
 
     setIsLoading(true)
+    setIsLoadingMore(false)
+    setCanPaginate(false)
     setError(null)
     setSearched(true)
     setCollections([])
     setCollectionOverview('')
 
     try {
-      if (nextCollectionId) {
-        const saga = await tmdbApi.collection(Number(nextCollectionId))
-        setCollectionId(String(saga.id))
-        setCollectionName(saga.name)
-        setCollectionOverview(saga.overview)
-        setResults(saga.parts)
-        setEnterKey((value) => value + 1)
-        return
+      const batch = await fetchResultPage(request, 1)
+      if (searchId !== searchIdRef.current) return
+
+      if (batch.collection) {
+        setCollectionId(String(batch.collection.id))
+        setCollectionName(batch.collection.name)
+        setCollectionOverview(batch.collection.overview)
+      } else {
+        setCollectionId('')
+        setCollectionName('')
       }
 
-      setCollectionId('')
-      setCollectionName('')
+      const paginate =
+        batch.paginate && 1 < batch.totalPages && batch.items.length > 0
+      pageRef.current = 1
+      totalPagesRef.current = batch.totalPages
+      canPaginateRef.current = paginate
 
-      if (nextQuery.trim() && !filtersOn) {
-        const type = nextType === 'ALL' ? 'all' : (nextType as MediaType)
-        const [titles, sagas] = await Promise.all([
-          tmdbApi.search(nextQuery.trim(), type),
-          nextType === 'TV'
-            ? Promise.resolve([])
-            : tmdbApi.searchCollections(nextQuery.trim()),
-        ])
-        setResults(titles)
-        setCollections(sagas)
-        setEnterKey((value) => value + 1)
-        return
-      }
-
-      if (!nextQuery.trim() && !filtersOn) {
-        setResults(await tmdbApi.trending('all'))
-        setEnterKey((value) => value + 1)
-        return
-      }
-
-      const primaryType: MediaType = nextType === 'TV' ? 'TV' : 'MOVIE'
-      const keywordFilter = nextKeywordId ? Number(nextKeywordId) : undefined
-
-      let discovered = await tmdbApi.discover({
-        mediaType: primaryType,
-        year: nextYear ? Number(nextYear) : undefined,
-        voteAverageGte: nextRating ? Number(nextRating) : undefined,
-        language: nextLanguage || undefined,
-        genreId: nextGenreId ? Number(nextGenreId) : undefined,
-        runtimeGte: runtime.min,
-        runtimeLte: runtime.max,
-        country: nextCountry || undefined,
-        keywordId: keywordFilter,
-        sortBy,
-      })
-
-      if (nextType === 'ALL') {
-        const tv = await tmdbApi.discover({
-          mediaType: 'TV',
-          year: nextYear ? Number(nextYear) : undefined,
-          voteAverageGte: nextRating ? Number(nextRating) : undefined,
-          language: nextLanguage || undefined,
-          genreId: nextGenreId ? Number(nextGenreId) : undefined,
-          country: nextCountry || undefined,
-          keywordId: keywordFilter,
-          sortBy,
-        })
-        discovered = [...discovered, ...tv]
-      }
-
-      if (nextQuery.trim()) {
-        const q = nextQuery.trim().toLowerCase()
-        discovered = discovered.filter((item) =>
-          item.title.toLowerCase().includes(q),
-        )
-      }
-
-      discovered = [...discovered].sort((a, b) => {
-        if (sortBy.includes('vote_average')) return b.voteAverage - a.voteAverage
-        return b.voteAverage - a.voteAverage
-      })
-
-      setResults(discovered.slice(0, 36))
+      setResults(batch.items)
+      setCollections(batch.collections)
+      setCanPaginate(paginate)
       setEnterKey((value) => value + 1)
     } catch {
+      if (searchId !== searchIdRef.current) return
       setError('Não foi possível buscar no TMDB')
       setResults([])
+      setCollections([])
+      setCanPaginate(false)
+      canPaginateRef.current = false
     } finally {
-      setIsLoading(false)
+      if (searchId === searchIdRef.current) setIsLoading(false)
     }
   }
+
+  const handleLoadMore = async () => {
+    const request = requestRef.current
+    if (!request || !canPaginateRef.current || loadingMoreRef.current) return
+    if (pageRef.current >= totalPagesRef.current) return
+
+    const searchId = searchIdRef.current
+    const nextPage = pageRef.current + 1
+    loadingMoreRef.current = true
+    setIsLoadingMore(true)
+
+    try {
+      const batch = await fetchResultPage(request, nextPage)
+      if (searchId !== searchIdRef.current) return
+
+      const paginate = batch.paginate && nextPage < batch.totalPages
+      pageRef.current = nextPage
+      totalPagesRef.current = batch.totalPages
+      canPaginateRef.current = paginate
+
+      setResults((current) => mergeMedia(current, batch.items))
+      setCanPaginate(paginate)
+    } catch {
+      if (searchId !== searchIdRef.current) return
+    } finally {
+      if (searchId === searchIdRef.current) {
+        loadingMoreRef.current = false
+        setIsLoadingMore(false)
+      }
+    }
+  }
+
+  loadMoreRef.current = () => {
+    void handleLoadMore()
+  }
+
+  useEffect(() => {
+    const node = sentinelRef.current
+    if (!node || !canPaginate || isLoading) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMoreRef.current()
+      },
+      { rootMargin: '640px 0px' },
+    )
+
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [canPaginate, isLoading, results.length])
 
   useEffect(() => {
     if (collectionParam) {
@@ -481,6 +625,14 @@ const SearchContent = () => {
     setSearched(false)
     setError(null)
     setShowAdvanced(false)
+    setCanPaginate(false)
+    setIsLoadingMore(false)
+    requestRef.current = null
+    pageRef.current = 1
+    totalPagesRef.current = 1
+    canPaginateRef.current = false
+    loadingMoreRef.current = false
+    searchIdRef.current += 1
     if (keywordParam || collectionParam) router.replace('/search')
     inputRef.current?.focus()
   }
@@ -887,6 +1039,7 @@ const SearchContent = () => {
                           : hasFilters
                             ? 'Com os filtros selecionados'
                             : 'Sugestões do catálogo'}
+                    {canPaginate ? ' · Role para ver mais' : ''}
                   </p>
                   {collectionOverview ? (
                     <p className="mt-3 max-w-3xl text-sm leading-relaxed text-mute">
@@ -932,6 +1085,20 @@ const SearchContent = () => {
                   ))}
                 </div>
               )}
+
+              {canPaginate ? (
+                <div
+                  ref={sentinelRef}
+                  className="mt-10 flex min-h-16 items-center justify-center"
+                  aria-live="polite"
+                >
+                  {isLoadingMore ? (
+                    <p className="text-sm text-mute">Carregando mais…</p>
+                  ) : (
+                    <span className="sr-only">Role para carregar mais resultados</span>
+                  )}
+                </div>
+              ) : null}
                 </>
               ) : null}
             </section>

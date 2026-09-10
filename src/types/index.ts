@@ -184,6 +184,13 @@ export type TmdbDiscoverFilters = {
   keywordId?: number
   /** How many TMDB pages to fetch (20 items each). Caps at 10. */
   maxPages?: number
+  page?: number
+}
+
+export type TmdbPagedMedia = {
+  items: TmdbMedia[]
+  page: number
+  totalPages: number
 }
 
 export type TmdbKeyword = {

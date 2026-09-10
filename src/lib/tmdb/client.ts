@@ -3,6 +3,7 @@ import type {
   MediaType,
   TmdbCredits,
   TmdbDiscoverFilters,
+  TmdbPagedMedia,
   TmdbEpisode,
   TmdbEpisodeDetails,
   TmdbKeyword,
@@ -164,15 +165,30 @@ const mapMedia = (
   }
 }
 
-const mapList = (
+const mapAll = (
   results: TmdbMovieResult[],
   fallbackType?: MediaType,
-  limit = 20,
 ) =>
   results
     .map((item) => mapMedia(item, fallbackType))
     .filter((item): item is TmdbMedia => item !== null)
-    .slice(0, limit)
+
+const mapList = (
+  results: TmdbMovieResult[],
+  fallbackType?: MediaType,
+  limit = 20,
+) => mapAll(results, fallbackType).slice(0, limit)
+
+const toPagedMedia = (
+  results: TmdbMovieResult[],
+  page: number,
+  totalPages: number,
+  fallbackType?: MediaType,
+): TmdbPagedMedia => ({
+  items: mapAll(results, fallbackType),
+  page,
+  totalPages: Math.min(Math.max(totalPages, 1), 500),
+})
 
 const mapCredits = (credits?: TmdbDetailsRaw['credits']): TmdbCredits => ({
   cast: (credits?.cast ?? []).slice(0, 24).map((person) => ({
@@ -384,12 +400,67 @@ export const formatMoney = (value: number | null | undefined) => {
   }).format(value)
 }
 
+const buildDiscoverParams = (filters: TmdbDiscoverFilters) => {
+  const mediaType = filters.mediaType ?? 'MOVIE'
+  const path = mediaType === 'MOVIE' ? '/discover/movie' : '/discover/tv'
+  const params: Record<string, string> = {
+    sort_by: filters.sortBy ?? 'popularity.desc',
+    include_adult: 'false',
+  }
+
+  if (filters.genreId) params.with_genres = String(filters.genreId)
+  if (filters.genreIds?.length) {
+    params.with_genres = filters.genreIds.join(',')
+  }
+  if (filters.withoutGenreIds?.length) {
+    params.without_genres = filters.withoutGenreIds.join(',')
+  }
+  if (filters.language) params.with_original_language = filters.language
+  if (filters.country) params.with_origin_country = filters.country
+  if (filters.keywordId) params.with_keywords = String(filters.keywordId)
+  if (filters.voteAverageGte !== undefined) {
+    params['vote_average.gte'] = String(filters.voteAverageGte)
+  }
+  if (filters.voteCountGte !== undefined) {
+    params['vote_count.gte'] = String(filters.voteCountGte)
+  }
+
+  if (mediaType === 'MOVIE') {
+    if (filters.year) params.primary_release_year = String(filters.year)
+    if (filters.runtimeGte !== undefined) {
+      params['with_runtime.gte'] = String(filters.runtimeGte)
+    }
+    if (filters.runtimeLte !== undefined) {
+      params['with_runtime.lte'] = String(filters.runtimeLte)
+    }
+    if (filters.primaryReleaseDateGte) {
+      params['primary_release_date.gte'] = filters.primaryReleaseDateGte
+    }
+    if (filters.primaryReleaseDateLte) {
+      params['primary_release_date.lte'] = filters.primaryReleaseDateLte
+    }
+  } else {
+    if (filters.year) params.first_air_date_year = String(filters.year)
+    if (filters.firstAirDateGte) {
+      params['first_air_date.gte'] = filters.firstAirDateGte
+    }
+    if (filters.firstAirDateLte) {
+      params['first_air_date.lte'] = filters.firstAirDateLte
+    }
+  }
+
+  return { mediaType, path, params }
+}
+
 export const tmdbApi = {
   search: async (
     query: string,
     mediaFilter: 'all' | MediaType = 'all',
-  ): Promise<TmdbMedia[]> => {
-    if (!query.trim()) return []
+    page = 1,
+  ): Promise<TmdbPagedMedia> => {
+    if (!query.trim()) {
+      return { items: [], page: 1, totalPages: 1 }
+    }
 
     const path =
       mediaFilter === 'MOVIE'
@@ -398,14 +469,19 @@ export const tmdbApi = {
           ? '/search/tv'
           : '/search/multi'
 
-    const data = await tmdbFetch<{ results: TmdbMovieResult[] }>(path, {
+    const data = await tmdbFetch<{
+      results: TmdbMovieResult[]
+      page?: number
+      total_pages?: number
+    }>(path, {
       query: query.trim(),
       include_adult: 'false',
+      page: String(Math.max(page, 1)),
     })
 
     const fallback = mediaFilter === 'all' ? undefined : mediaFilter
 
-    return mapList(
+    return toPagedMedia(
       data.results.map((item) =>
         mediaFilter === 'MOVIE'
           ? { ...item, media_type: 'movie' }
@@ -413,8 +489,9 @@ export const tmdbApi = {
             ? { ...item, media_type: 'tv' }
             : item,
       ),
+      data.page ?? page,
+      data.total_pages ?? 1,
       fallback,
-      24,
     )
   },
 
@@ -467,10 +544,27 @@ export const tmdbApi = {
   },
 
   trending: async (media: 'all' | 'movie' | 'tv' = 'all'): Promise<TmdbMedia[]> => {
-    const data = await tmdbFetch<{ results: TmdbMovieResult[] }>(
-      `/trending/${media}/week`,
+    const page = await tmdbApi.trendingPage(media, 1)
+    return page.items
+  },
+
+  trendingPage: async (
+    media: 'all' | 'movie' | 'tv' = 'all',
+    page = 1,
+  ): Promise<TmdbPagedMedia> => {
+    const data = await tmdbFetch<{
+      results: TmdbMovieResult[]
+      page?: number
+      total_pages?: number
+    }>(`/trending/${media}/week`, {
+      page: String(Math.max(page, 1)),
+    })
+
+    return toPagedMedia(
+      data.results,
+      data.page ?? page,
+      data.total_pages ?? 1,
     )
-    return mapList(data.results)
   },
 
   popular: async (mediaType: MediaType): Promise<TmdbMedia[]> => {
@@ -506,78 +600,41 @@ export const tmdbApi = {
   },
 
   discover: async (filters: TmdbDiscoverFilters = {}): Promise<TmdbMedia[]> => {
-    const mediaType = filters.mediaType ?? 'MOVIE'
-    const path = mediaType === 'MOVIE' ? '/discover/movie' : '/discover/tv'
-    const params: Record<string, string> = {
-      sort_by: filters.sortBy ?? 'popularity.desc',
-      include_adult: 'false',
-    }
-
-    if (filters.genreId) params.with_genres = String(filters.genreId)
-    if (filters.genreIds?.length) {
-      params.with_genres = filters.genreIds.join(',')
-    }
-    if (filters.withoutGenreIds?.length) {
-      params.without_genres = filters.withoutGenreIds.join(',')
-    }
-    if (filters.language) params.with_original_language = filters.language
-    if (filters.country) params.with_origin_country = filters.country
-    if (filters.keywordId) params.with_keywords = String(filters.keywordId)
-    if (filters.voteAverageGte !== undefined) {
-      params['vote_average.gte'] = String(filters.voteAverageGte)
-    }
-    if (filters.voteCountGte !== undefined) {
-      params['vote_count.gte'] = String(filters.voteCountGte)
-    }
-
-    if (mediaType === 'MOVIE') {
-      if (filters.year) params.primary_release_year = String(filters.year)
-      if (filters.runtimeGte !== undefined) {
-        params['with_runtime.gte'] = String(filters.runtimeGte)
-      }
-      if (filters.runtimeLte !== undefined) {
-        params['with_runtime.lte'] = String(filters.runtimeLte)
-      }
-      if (filters.primaryReleaseDateGte) {
-        params['primary_release_date.gte'] = filters.primaryReleaseDateGte
-      }
-      if (filters.primaryReleaseDateLte) {
-        params['primary_release_date.lte'] = filters.primaryReleaseDateLte
-      }
-    } else {
-      if (filters.year) params.first_air_date_year = String(filters.year)
-      if (filters.firstAirDateGte) {
-        params['first_air_date.gte'] = filters.firstAirDateGte
-      }
-      if (filters.firstAirDateLte) {
-        params['first_air_date.lte'] = filters.firstAirDateLte
-      }
-    }
-
     const maxPages = Math.min(Math.max(filters.maxPages ?? 1, 1), 10)
     const merged: TmdbMedia[] = []
     const seen = new Set<string>()
 
     for (let page = 1; page <= maxPages; page += 1) {
-      const data = await tmdbFetch<{
-        results: TmdbMovieResult[]
-        total_pages?: number
-      }>(path, { ...params, page: String(page) })
-
-      data.results.forEach((item) => {
-        const mapped = mapMedia(item, mediaType)
-        if (!mapped) return
-        const key = `${mapped.mediaType}-${mapped.id}`
+      const batch = await tmdbApi.discoverPage({ ...filters, page })
+      batch.items.forEach((item) => {
+        const key = `${item.mediaType}-${item.id}`
         if (seen.has(key)) return
         seen.add(key)
-        merged.push(mapped)
+        merged.push(item)
       })
-
-      const totalPages = data.total_pages ?? 1
-      if (page >= totalPages) break
+      if (page >= batch.totalPages) break
     }
 
     return merged
+  },
+
+  discoverPage: async (
+    filters: TmdbDiscoverFilters = {},
+  ): Promise<TmdbPagedMedia> => {
+    const { mediaType, path, params } = buildDiscoverParams(filters)
+    const page = Math.max(filters.page ?? 1, 1)
+    const data = await tmdbFetch<{
+      results: TmdbMovieResult[]
+      page?: number
+      total_pages?: number
+    }>(path, { ...params, page: String(page) })
+
+    return toPagedMedia(
+      data.results,
+      data.page ?? page,
+      data.total_pages ?? 1,
+      mediaType,
+    )
   },
 
   watchProviders: async (
