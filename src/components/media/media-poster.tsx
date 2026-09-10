@@ -195,6 +195,44 @@ type RankedMediaRowProps = {
   getHref?: (media: TmdbMedia) => string
 }
 
+type RankedPosterProps = {
+  media: TmdbMedia
+  rank: number
+  href: string
+}
+
+const RankedPoster = ({ media, rank, href }: RankedPosterProps) => {
+  return (
+    <Link
+      href={href}
+      className="group relative z-0 block h-[11.6rem] w-[12.8rem] shrink-0 focus-visible:outline-none hover:z-20 focus-visible:z-20 sm:h-[14.25rem] sm:w-[15.6rem] md:h-[15.95rem] md:w-[17.35rem]"
+      aria-label={`${rank}º. ${media.title}`}
+      tabIndex={0}
+    >
+      <span
+        aria-hidden
+        className="top10-rank pointer-events-none absolute bottom-[-0.04em] left-0 z-0 select-none font-display text-[7.2rem] font-black leading-none tracking-[-0.05em] sm:text-[8.9rem] md:text-[9.9rem]"
+      >
+        {rank}
+      </span>
+      <span className="absolute bottom-0 right-0 z-10 aspect-[2/3] h-full overflow-hidden rounded-md bg-surface-2 shadow-[0_18px_40px_rgba(0,0,0,0.55)] transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.04] group-hover:shadow-[0_24px_52px_rgba(0,0,0,0.62)] group-focus-visible:scale-[1.04]">
+        <TmdbImage
+          path={media.posterPath}
+          alt=""
+          size="w342"
+          fill
+          sizes="170px"
+        />
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent px-2.5 pb-2.5 pt-10 opacity-0 transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:opacity-100 group-focus-visible:opacity-100">
+          <span className="line-clamp-2 text-sm font-semibold leading-tight">
+            {media.title}
+          </span>
+        </span>
+      </span>
+    </Link>
+  )
+}
+
 export const RankedMediaRow = ({ title, items, getHref }: RankedMediaRowProps) => {
   const ranked = items.slice(0, 10)
   const scrollerRef = useRef<HTMLDivElement>(null)
@@ -233,8 +271,8 @@ export const RankedMediaRow = ({ title, items, getHref }: RankedMediaRowProps) =
   }
 
   return (
-    <section className="group/row relative space-y-3">
-      <h2 className="px-4 text-lg font-semibold tracking-tight text-ink sm:px-8 sm:text-xl">
+    <section className="group/row relative space-y-4">
+      <h2 className="px-4 font-display text-xl font-bold tracking-tight text-ink sm:px-8 sm:text-2xl">
         {title}
       </h2>
 
@@ -274,7 +312,7 @@ export const RankedMediaRow = ({ title, items, getHref }: RankedMediaRowProps) =
         <div
           ref={scrollerRef}
           onScroll={updateArrows}
-          className="hide-scrollbar flex items-end gap-1 overflow-x-auto px-4 pb-2 sm:gap-2 sm:px-8"
+          className="hide-scrollbar flex items-end gap-2 overflow-x-auto px-4 pb-6 pt-3 sm:gap-3 sm:px-8 sm:pb-8 sm:pt-4"
         >
           {ranked.map((media, index) => {
             const href =
@@ -283,31 +321,12 @@ export const RankedMediaRow = ({ title, items, getHref }: RankedMediaRowProps) =
             const rank = index + 1
 
             return (
-              <Link
+              <RankedPoster
                 key={`${media.mediaType}-${media.id}`}
+                media={media}
+                rank={rank}
                 href={href}
-                className="group relative flex shrink-0 items-end focus-visible:outline-none"
-                aria-label={`${rank}º. ${media.title}`}
-                tabIndex={0}
-              >
-                <span
-                  aria-hidden
-                  className="mb-[-6px] select-none font-display text-[7.5rem] font-black leading-none text-bg [-webkit-text-stroke:3px_#8b8b8b] sm:text-[9rem]"
-                >
-                  {rank}
-                </span>
-                <span className="-ml-6 w-[110px] sm:-ml-8 sm:w-[130px] md:w-[148px]">
-                  <span className="relative block aspect-[2/3] overflow-hidden rounded-md bg-surface-2 shadow-[0_12px_28px_rgba(0,0,0,0.45)] transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.05] group-hover:shadow-[0_16px_40px_rgba(0,0,0,0.55)]">
-                    <TmdbImage
-                      path={media.posterPath}
-                      alt=""
-                      size="w342"
-                      fill
-                      sizes="148px"
-                    />
-                  </span>
-                </span>
-              </Link>
+              />
             )
           })}
         </div>

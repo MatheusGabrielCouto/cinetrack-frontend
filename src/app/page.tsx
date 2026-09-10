@@ -7,7 +7,6 @@ import { LandingHero } from '@/components/media/landing-hero'
 import {
   MediaRow,
   MediaRowSkeleton,
-  RankedMediaRow,
 } from '@/components/media/media-poster'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/components/providers/auth-provider'
@@ -89,11 +88,6 @@ export default function HomePage() {
       <div className="relative z-10 -mt-20 space-y-9 pb-8 sm:-mt-28">
         {ready ? (
           <div className="space-y-9 catalog-enter">
-            <RankedMediaRow
-              title="Top 10 da semana"
-              items={trending}
-              getHref={guestHref}
-            />
             <MediaRow
               title="Em alta agora"
               items={trending}
