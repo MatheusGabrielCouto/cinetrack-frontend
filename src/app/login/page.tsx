@@ -10,9 +10,6 @@ import { Input } from '@/components/ui/input'
 import { ApiError } from '@/lib/api/client'
 import { safeInternalPath } from '@/lib/safe-path'
 
-const DEMO_EMAIL = 'demo@cinetrack.app'
-const DEMO_PASSWORD = 'password123'
-
 const nextPath = () =>
   safeInternalPath(new URLSearchParams(window.location.search).get('next')) ??
   '/discover'
@@ -53,12 +50,6 @@ export default function LoginPage() {
     } finally {
       setPending(false)
     }
-  }
-
-  const handleDemoFill = () => {
-    setEmail(DEMO_EMAIL)
-    setPassword(DEMO_PASSWORD)
-    setError(null)
   }
 
   return (
@@ -102,14 +93,6 @@ export default function LoginPage() {
           {pending ? 'Entrando…' : 'Entrar'}
         </Button>
       </form>
-
-      <button
-        type="button"
-        onClick={handleDemoFill}
-        className="mt-4 text-left text-sm text-mute transition hover:text-ink"
-      >
-        Preencher conta demo
-      </button>
 
       <p className="mt-8 text-sm text-mute">
         Novo no CineTrack?{' '}
