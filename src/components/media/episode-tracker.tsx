@@ -1,10 +1,12 @@
 'use client'
 
+import Link from 'next/link'
 import { IconCheck, IconPlay, IconStar } from '@/components/icons'
 import { TmdbImage } from '@/components/media/tmdb-image'
 import { formatRuntime } from '@/lib/tmdb/client'
 import {
   episodeMark,
+  episodePath,
   formatEpisodeCode,
   seasonWatchedCount,
 } from '@/lib/library/progress'
@@ -13,6 +15,7 @@ import type { TmdbSeasonDetails, TmdbSeasonSummary } from '@/types'
 import { useTitleLibrary } from '@/components/library/title-library-context'
 
 type EpisodeTrackerProps = {
+  tvId: number
   seasons: TmdbSeasonSummary[]
   selectedSeason: number | null
   season: TmdbSeasonDetails | null
@@ -26,6 +29,7 @@ const formatDate = (value: string | null) => {
 }
 
 export const EpisodeTracker = ({
+  tvId,
   seasons,
   selectedSeason,
   season,
@@ -170,6 +174,12 @@ export const EpisodeTracker = ({
                 )
               }
 
+              const href = episodePath(
+                tvId,
+                episode.seasonNumber,
+                episode.episodeNumber,
+              )
+
               return (
                 <li
                   key={episode.id}
@@ -181,18 +191,11 @@ export const EpisodeTracker = ({
                     isCurrent && 'opacity-100',
                   )}
                 >
-                  <button
-                    type="button"
-                    onClick={handlePrimary}
-                    disabled={isSaving}
-                    className="group relative aspect-video overflow-hidden rounded-md bg-surface-2 text-left"
-                    aria-label={
-                      mark === 'watched'
-                        ? `Rever ${episode.name}`
-                        : mark === 'current'
-                          ? `Marcar ${episode.name} como visto`
-                          : `Continuar de ${episode.name}`
-                    }
+                  <Link
+                    href={href}
+                    className="group relative aspect-video overflow-hidden rounded-md bg-surface-2 focus-visible:outline-none"
+                    aria-label={`Ver detalhes de ${episode.name}`}
+                    tabIndex={0}
                   >
                     <TmdbImage
                       path={episode.stillPath}
@@ -228,14 +231,19 @@ export const EpisodeTracker = ({
                         episode.episodeNumber,
                       )}
                     </span>
-                  </button>
+                  </Link>
 
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <p className="text-base font-semibold leading-snug">
+                        <Link
+                          href={href}
+                          className="text-base font-semibold leading-snug transition hover:text-white"
+                          aria-label={`Ver detalhes de ${episode.name}`}
+                          tabIndex={0}
+                        >
                           {episode.episodeNumber}. {episode.name}
-                        </p>
+                        </Link>
                         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-mute">
                           {airDate ? <span>{airDate}</span> : null}
                           {episode.runtime ? (

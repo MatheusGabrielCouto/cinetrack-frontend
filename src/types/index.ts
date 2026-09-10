@@ -191,6 +191,18 @@ export type TmdbKeyword = {
   name: string
 }
 
+export type TmdbCollectionSummary = {
+  id: number
+  name: string
+  overview: string
+  posterPath: string | null
+  backdropPath: string | null
+}
+
+export type TmdbCollectionDetails = TmdbCollectionSummary & {
+  parts: TmdbMedia[]
+}
+
 export type TmdbCredits = {
   cast: Array<{
     id: number
@@ -232,6 +244,16 @@ export type TmdbEpisode = {
   voteAverage: number
 }
 
+export type TmdbEpisodeDetails = TmdbEpisode & {
+  voteCount: number
+  productionCode: string | null
+  guestStars: TmdbCredits['cast']
+  cast: TmdbCredits['cast']
+  crew: TmdbCredits['crew']
+  stills: string[]
+  videos: TmdbVideo[]
+}
+
 export type TmdbSeasonDetails = {
   id: number
   name: string
@@ -270,6 +292,7 @@ export type TmdbMediaDetails = TmdbMedia & {
   similar: TmdbMedia[]
   recommendations: TmdbMedia[]
   keywords: TmdbKeyword[]
+  belongsToCollection: TmdbCollectionSummary | null
 }
 
 export type TmdbPersonCredit = TmdbMedia & {

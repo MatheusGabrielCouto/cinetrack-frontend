@@ -18,6 +18,9 @@ export const countWatchableEpisodes = (seasons: SeasonRef[]) =>
 export const formatEpisodeCode = (season: number, episode: number) =>
   `T${season} · E${episode}`
 
+export const episodePath = (tvId: number, season: number, episode: number) =>
+  `/title/tv/${tvId}/season/${season}/episode/${episode}`
+
 export const compareEpisode = (
   leftSeason: number,
   leftEpisode: number,
@@ -49,6 +52,23 @@ export const nextEpisode = (
   }
 
   return null
+}
+
+export const previousEpisode = (
+  seasons: SeasonRef[],
+  seasonNumber: number,
+  episodeNumber: number,
+): EpisodeCursor | null => {
+  if (episodeNumber > 1) {
+    return { season: seasonNumber, episode: episodeNumber - 1 }
+  }
+
+  const previous = seasons
+    .filter((season) => season.episodeCount > 0 && season.seasonNumber < seasonNumber)
+    .sort((a, b) => b.seasonNumber - a.seasonNumber)[0]
+
+  if (!previous) return null
+  return { season: previous.seasonNumber, episode: previous.episodeCount }
 }
 
 export const lastEpisodeOfSeason = (

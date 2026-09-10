@@ -17,7 +17,7 @@ import { TrailerModal } from '@/components/media/trailer-modal'
 import { WatchProviders } from '@/components/media/watch-providers'
 import { formatMoney, formatRuntime, tmdbApi, tmdbImage } from '@/lib/tmdb/client'
 import { formatRating } from '@/lib/utils'
-import type { MediaType, TmdbMediaDetails, TmdbSeasonDetails } from '@/types'
+import type { MediaType, TmdbCollectionDetails, TmdbMediaDetails, TmdbSeasonDetails } from '@/types'
 
 const parseMediaType = (value: string): MediaType | null => {
   if (value === 'movie') return 'MOVIE'
@@ -112,11 +112,30 @@ const TitleDetailView = ({ details }: { details: TmdbMediaDetails }) => {
   )
   const [activeTrailer, setActiveTrailer] = useState<string | null>(null)
   const [isSeasonLoading, setIsSeasonLoading] = useState(false)
+  const [saga, setSaga] = useState<TmdbCollectionDetails | null>(null)
 
   useEffect(() => {
     if (item?.currentSeason == null) return
     setSelectedSeason(item.currentSeason)
   }, [item?.currentSeason])
+
+  useEffect(() => {
+    const collection = details.belongsToCollection
+    if (!collection) {
+      setSaga(null)
+      return
+    }
+
+    const loadSaga = async () => {
+      try {
+        setSaga(await tmdbApi.collection(collection.id))
+      } catch {
+        setSaga(null)
+      }
+    }
+
+    void loadSaga()
+  }, [details.belongsToCollection?.id])
 
   useEffect(() => {
     if (details.mediaType !== 'TV' || selectedSeason === null) return
@@ -277,6 +296,23 @@ const TitleDetailView = ({ details }: { details: TmdbMediaDetails }) => {
                 </div>
               ) : null}
 
+              {details.belongsToCollection ? (
+                <div className="mt-6">
+                  <p className="text-sm text-mute">Saga</p>
+                  <Link
+                    href={`/search?${new URLSearchParams({
+                      collection: String(details.belongsToCollection.id),
+                      name: details.belongsToCollection.name,
+                    }).toString()}`}
+                    className="mt-2 inline-flex rounded-full bg-surface-2 px-3 py-1 text-sm transition hover:bg-white/15 hover:text-white"
+                    aria-label={`Ver saga ${details.belongsToCollection.name} em ordem de lançamento`}
+                    tabIndex={0}
+                  >
+                    {details.belongsToCollection.name}
+                  </Link>
+                </div>
+              ) : null}
+
               {details.keywords.length ? (
                 <div className="mt-6">
                   <p className="text-sm text-mute">Keywords</p>
@@ -306,6 +342,7 @@ const TitleDetailView = ({ details }: { details: TmdbMediaDetails }) => {
 
             {details.mediaType === 'TV' && details.seasons.length ? (
               <EpisodeTracker
+                tvId={details.id}
                 seasons={details.seasons}
                 selectedSeason={selectedSeason}
                 season={season}
@@ -354,6 +391,12 @@ const TitleDetailView = ({ details }: { details: TmdbMediaDetails }) => {
             ) : null}
 
             <div className="-mx-4 space-y-10 sm:-mx-8">
+              {saga?.parts.length ? (
+                <MediaRow
+                  title={`Saga · ${saga.name}`}
+                  items={saga.parts}
+                />
+              ) : null}
               {details.recommendations.length ? (
                 <MediaRow title="Recomendados" items={details.recommendations} />
               ) : null}

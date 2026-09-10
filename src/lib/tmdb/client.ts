@@ -4,7 +4,10 @@ import type {
   TmdbCredits,
   TmdbDiscoverFilters,
   TmdbEpisode,
+  TmdbEpisodeDetails,
   TmdbKeyword,
+  TmdbCollectionDetails,
+  TmdbCollectionSummary,
   TmdbMedia,
   TmdbMediaDetails,
   TmdbPersonDetails,
@@ -98,6 +101,12 @@ type TmdbDetailsRaw = TmdbMovieResult & {
     keywords?: Array<{ id: number; name: string }>
     results?: Array<{ id: number; name: string }>
   }
+  belongs_to_collection?: {
+    id: number
+    name: string
+    poster_path: string | null
+    backdrop_path: string | null
+  } | null
 }
 
 const ensureKey = () => {
@@ -235,6 +244,28 @@ const mapKeywords = (keywords?: TmdbDetailsRaw['keywords']): TmdbKeyword[] => {
     .slice(0, 24)
     .map((item) => ({ id: item.id, name: item.name }))
 }
+
+const mapCollectionSummary = (
+  collection?: TmdbDetailsRaw['belongs_to_collection'],
+): TmdbCollectionSummary | null => {
+  if (!collection?.id || !collection.name) return null
+
+  return {
+    id: collection.id,
+    name: collection.name,
+    overview: '',
+    posterPath: collection.poster_path,
+    backdropPath: collection.backdrop_path,
+  }
+}
+
+const sortByReleaseDate = (items: TmdbMedia[]) =>
+  [...items].sort((a, b) => {
+    if (!a.releaseDate && !b.releaseDate) return 0
+    if (!a.releaseDate) return 1
+    if (!b.releaseDate) return -1
+    return a.releaseDate.localeCompare(b.releaseDate)
+  })
 
 type TmdbPersonCreditRaw = TmdbMovieResult & {
   character?: string
@@ -385,6 +416,54 @@ export const tmdbApi = {
       fallback,
       24,
     )
+  },
+
+  searchCollections: async (query: string): Promise<TmdbCollectionSummary[]> => {
+    if (!query.trim()) return []
+
+    const data = await tmdbFetch<{
+      results: Array<{
+        id: number
+        name: string
+        overview?: string
+        poster_path: string | null
+        backdrop_path: string | null
+      }>
+    }>('/search/collection', {
+      query: query.trim(),
+      include_adult: 'false',
+    })
+
+    return data.results
+      .filter((item) => item.id && item.name)
+      .slice(0, 8)
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        overview: item.overview ?? '',
+        posterPath: item.poster_path,
+        backdropPath: item.backdrop_path,
+      }))
+  },
+
+  collection: async (id: number): Promise<TmdbCollectionDetails> => {
+    const data = await tmdbFetch<{
+      id: number
+      name: string
+      overview: string
+      poster_path: string | null
+      backdrop_path: string | null
+      parts: TmdbMovieResult[]
+    }>(`/collection/${id}`)
+
+    return {
+      id: data.id,
+      name: data.name,
+      overview: data.overview ?? '',
+      posterPath: data.poster_path,
+      backdropPath: data.backdrop_path,
+      parts: sortByReleaseDate(mapList(data.parts ?? [], 'MOVIE', 40)),
+    }
   },
 
   trending: async (media: 'all' | 'movie' | 'tv' = 'all'): Promise<TmdbMedia[]> => {
@@ -660,6 +739,7 @@ export const tmdbApi = {
         12,
       ),
       keywords: mapKeywords(data.keywords),
+      belongsToCollection: mapCollectionSummary(data.belongs_to_collection),
     }
   },
 
@@ -707,6 +787,119 @@ export const tmdbApi = {
           voteAverage: episode.vote_average,
         }),
       ),
+    }
+  },
+
+  episodeDetails: async (
+    tvId: number,
+    seasonNumber: number,
+    episodeNumber: number,
+  ): Promise<TmdbEpisodeDetails> => {
+    type EpisodePersonRaw = {
+      id: number
+      name: string
+      character?: string
+      job?: string
+      profile_path: string | null
+    }
+
+    const data = await tmdbFetch<{
+      id: number
+      name: string
+      overview: string
+      episode_number: number
+      season_number: number
+      air_date: string | null
+      runtime: number | null
+      still_path: string | null
+      vote_average: number
+      vote_count?: number
+      production_code?: string | null
+      guest_stars?: EpisodePersonRaw[]
+      crew?: EpisodePersonRaw[]
+      credits?: {
+        cast?: EpisodePersonRaw[]
+        crew?: EpisodePersonRaw[]
+        guest_stars?: EpisodePersonRaw[]
+      }
+      images?: { stills?: Array<{ file_path: string }> }
+      videos?: TmdbDetailsRaw['videos']
+    }>(`/tv/${tvId}/season/${seasonNumber}/episode/${episodeNumber}`, {
+      append_to_response: 'credits,images,videos',
+    })
+
+    let overview = data.overview?.trim() ?? ''
+
+    if (!overview) {
+      try {
+        const english = await tmdbFetch<{ overview: string }>(
+          `/tv/${tvId}/season/${seasonNumber}/episode/${episodeNumber}`,
+          {},
+          'en-US',
+        )
+        overview = english.overview?.trim() ?? ''
+      } catch {
+        overview = ''
+      }
+    }
+
+    const mapPeople = (
+      list: EpisodePersonRaw[] | undefined,
+      withCharacter: boolean,
+    ) =>
+      (list ?? [])
+        .filter((person) => person.id && person.name)
+        .slice(0, 18)
+        .map((person) => ({
+          id: person.id,
+          name: person.name,
+          character: withCharacter ? person.character ?? '' : person.job ?? '',
+          profilePath: person.profile_path,
+        }))
+
+    const guestStars = mapPeople(
+      data.credits?.guest_stars ?? data.guest_stars,
+      true,
+    )
+    const seenGuests = new Set(guestStars.map((person) => person.id))
+    const cast = mapPeople(data.credits?.cast, true).filter(
+      (person) => !seenGuests.has(person.id),
+    )
+
+    const crewSource = data.credits?.crew ?? data.crew ?? []
+    const crew = crewSource
+      .filter((person) =>
+        ['Director', 'Writer', 'Screenplay', 'Teleplay'].includes(person.job ?? ''),
+      )
+      .slice(0, 12)
+      .map((person) => ({
+        id: person.id,
+        name: person.name,
+        job: person.job ?? '',
+      }))
+
+    const stills = (data.images?.stills ?? [])
+      .map((still) => still.file_path)
+      .filter(Boolean)
+      .slice(0, 12)
+
+    return {
+      id: data.id,
+      name: data.name,
+      overview,
+      episodeNumber: data.episode_number,
+      seasonNumber: data.season_number,
+      airDate: data.air_date,
+      runtime: data.runtime,
+      stillPath: data.still_path,
+      voteAverage: data.vote_average ?? 0,
+      voteCount: data.vote_count ?? 0,
+      productionCode: data.production_code || null,
+      guestStars,
+      cast,
+      crew,
+      stills,
+      videos: mapVideos(data.videos),
     }
   },
 

@@ -3,12 +3,13 @@
 import { Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { RequireAuth } from '@/components/auth/require-auth'
+import { CollectionCard } from '@/components/media/collection-card'
 import { MediaPoster } from '@/components/media/media-poster'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { tmdbApi, type TmdbGenre } from '@/lib/tmdb/client'
 import { cn, formatYear } from '@/lib/utils'
-import type { MediaType, TmdbMedia } from '@/types'
+import type { MediaType, TmdbCollectionSummary, TmdbMedia } from '@/types'
 
 const LANGUAGES = [
   { value: '', label: 'Qualquer idioma' },
@@ -128,7 +129,8 @@ const SearchContent = () => {
   const router = useRouter()
   const searchParams = useSearchParams()
   const keywordParam = searchParams.get('keyword') ?? ''
-  const keywordNameParam = searchParams.get('name') ?? ''
+  const collectionParam = searchParams.get('collection') ?? ''
+  const nameParam = searchParams.get('name') ?? ''
   const inputRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
   const [mediaType, setMediaType] = useState<MediaType | 'ALL'>('ALL')
@@ -140,12 +142,22 @@ const SearchContent = () => {
   const [country, setCountry] = useState('')
   const [sortBy, setSortBy] = useState('popularity.desc')
   const [keywordId, setKeywordId] = useState(keywordParam)
-  const [keywordName, setKeywordName] = useState(keywordNameParam)
+  const [keywordName, setKeywordName] = useState(keywordParam ? nameParam : '')
+  const [collectionId, setCollectionId] = useState(collectionParam)
+  const [collectionName, setCollectionName] = useState(
+    collectionParam ? nameParam : '',
+  )
+  const [collectionOverview, setCollectionOverview] = useState('')
+  const [collections, setCollections] = useState<TmdbCollectionSummary[]>([])
   const [genres, setGenres] = useState<TmdbGenre[]>([])
   const [results, setResults] = useState<TmdbMedia[]>([])
   const [trending, setTrending] = useState<TmdbMedia[]>([])
-  const [isLoading, setIsLoading] = useState(Boolean(keywordParam))
-  const [searched, setSearched] = useState(Boolean(keywordParam))
+  const [isLoading, setIsLoading] = useState(
+    Boolean(keywordParam || collectionParam),
+  )
+  const [searched, setSearched] = useState(
+    Boolean(keywordParam || collectionParam),
+  )
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [enterKey, setEnterKey] = useState(0)
@@ -246,7 +258,8 @@ const SearchContent = () => {
     runtimePreset,
   ])
 
-  const hasFilters = activeChips.length > 0 || Boolean(keywordId)
+  const hasFilters =
+    activeChips.length > 0 || Boolean(keywordId) || Boolean(collectionId)
 
   const runSearch = async (overrides?: {
     query?: string
@@ -259,6 +272,8 @@ const SearchContent = () => {
     runtimePreset?: RuntimePreset
     keywordId?: string
     keywordName?: string
+    collectionId?: string
+    collectionName?: string
   }) => {
     const nextQuery = overrides?.query ?? query
     const nextType = overrides?.mediaType ?? mediaType
@@ -269,6 +284,7 @@ const SearchContent = () => {
     const nextCountry = overrides?.country ?? country
     const nextRuntime = overrides?.runtimePreset ?? runtimePreset
     const nextKeywordId = overrides?.keywordId ?? keywordId
+    const nextCollectionId = overrides?.collectionId ?? collectionId
 
     const runtime =
       nextRuntime === 'short'
@@ -293,11 +309,33 @@ const SearchContent = () => {
     setIsLoading(true)
     setError(null)
     setSearched(true)
+    setCollections([])
+    setCollectionOverview('')
 
     try {
+      if (nextCollectionId) {
+        const saga = await tmdbApi.collection(Number(nextCollectionId))
+        setCollectionId(String(saga.id))
+        setCollectionName(saga.name)
+        setCollectionOverview(saga.overview)
+        setResults(saga.parts)
+        setEnterKey((value) => value + 1)
+        return
+      }
+
+      setCollectionId('')
+      setCollectionName('')
+
       if (nextQuery.trim() && !filtersOn) {
         const type = nextType === 'ALL' ? 'all' : (nextType as MediaType)
-        setResults(await tmdbApi.search(nextQuery.trim(), type))
+        const [titles, sagas] = await Promise.all([
+          tmdbApi.search(nextQuery.trim(), type),
+          nextType === 'TV'
+            ? Promise.resolve([])
+            : tmdbApi.searchCollections(nextQuery.trim()),
+        ])
+        setResults(titles)
+        setCollections(sagas)
         setEnterKey((value) => value + 1)
         return
       }
@@ -361,16 +399,34 @@ const SearchContent = () => {
   }
 
   useEffect(() => {
+    if (collectionParam) {
+      setCollectionId(collectionParam)
+      setCollectionName(nameParam)
+      setKeywordId('')
+      setKeywordName('')
+      setQuery('')
+      void runSearch({
+        query: '',
+        collectionId: collectionParam,
+        collectionName: nameParam,
+        keywordId: '',
+        keywordName: '',
+      })
+      return
+    }
+
     if (!keywordParam) return
     setKeywordId(keywordParam)
-    setKeywordName(keywordNameParam)
+    setKeywordName(nameParam)
     setQuery('')
     void runSearch({
       query: '',
       keywordId: keywordParam,
-      keywordName: keywordNameParam,
+      keywordName: nameParam,
+      collectionId: '',
+      collectionName: '',
     })
-  }, [keywordParam, keywordNameParam])
+  }, [keywordParam, collectionParam, nameParam])
 
   const handleClearKeyword = () => {
     setKeywordId('')
@@ -379,9 +435,30 @@ const SearchContent = () => {
     void runSearch({ keywordId: '', keywordName: '' })
   }
 
+  const handleClearCollection = () => {
+    setCollectionId('')
+    setCollectionName('')
+    setCollectionOverview('')
+    router.replace('/search')
+    void runSearch({ collectionId: '', collectionName: '' })
+  }
+
   const handleSearch = (event?: FormEvent) => {
     event?.preventDefault()
-    void runSearch()
+    if (collectionId || keywordId) {
+      setKeywordId('')
+      setKeywordName('')
+      setCollectionId('')
+      setCollectionName('')
+      setCollectionOverview('')
+      router.replace('/search')
+    }
+    void runSearch({
+      collectionId: '',
+      collectionName: '',
+      keywordId: '',
+      keywordName: '',
+    })
   }
 
   const handleClear = () => {
@@ -396,11 +473,15 @@ const SearchContent = () => {
     setSortBy('popularity.desc')
     setKeywordId('')
     setKeywordName('')
+    setCollectionId('')
+    setCollectionName('')
+    setCollectionOverview('')
+    setCollections([])
     setResults([])
     setSearched(false)
     setError(null)
     setShowAdvanced(false)
-    if (keywordParam) router.replace('/search')
+    if (keywordParam || collectionParam) router.replace('/search')
     inputRef.current?.focus()
   }
 
@@ -445,8 +526,11 @@ const SearchContent = () => {
     setRuntimePreset('')
     setKeywordId('')
     setKeywordName('')
+    setCollectionId('')
+    setCollectionName('')
+    setCollectionOverview('')
     setShowAdvanced(true)
-    if (keywordParam) router.replace('/search')
+    if (keywordParam || collectionParam) router.replace('/search')
 
     await runSearch({
       query: '',
@@ -459,6 +543,8 @@ const SearchContent = () => {
       runtimePreset: '',
       keywordId: '',
       keywordName: '',
+      collectionId: '',
+      collectionName: '',
     })
   }
 
@@ -479,7 +565,8 @@ const SearchContent = () => {
             Busca
           </h1>
           <p className="mt-4 max-w-xl text-base leading-relaxed text-mute">
-            Encontre por nome ou refine por gênero, ano, nota, idioma e mais.
+            Encontre um título, uma saga como Invocação do Mal, ou refine por
+            gênero, ano e nota.
           </p>
 
           <form
@@ -501,7 +588,7 @@ const SearchContent = () => {
                   ref={inputRef}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Matrix, Breaking Bad, Studio Ghibli…"
+                  placeholder="Invocação do Mal, Matrix, Breaking Bad…"
                   className="h-14 w-full rounded-xl border border-line bg-black/55 pl-11 pr-4 text-base text-ink placeholder:text-mute/70 shadow-[0_12px_40px_rgba(0,0,0,0.35)] backdrop-blur-sm transition focus:border-accent"
                   autoComplete="off"
                 />
@@ -669,6 +756,17 @@ const SearchContent = () => {
             {hasFilters ? (
               <div className="mt-6 flex flex-wrap items-center gap-2.5">
                 <span className="text-xs text-mute">Ativos:</span>
+                {collectionId ? (
+                  <button
+                    type="button"
+                    onClick={handleClearCollection}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-xs font-medium text-ink transition hover:bg-accent/20"
+                    aria-label={`Remover saga ${collectionName || 'Saga'}`}
+                  >
+                    {collectionName || 'Saga'}
+                    <span aria-hidden>×</span>
+                  </button>
+                ) : null}
                 {keywordId ? (
                   <button
                     type="button"
@@ -749,22 +847,52 @@ const SearchContent = () => {
 
           {searched && !isLoading ? (
             <section className="mt-14">
+              {collections.length ? (
+                <div className="mb-12">
+                  <h2 className="font-display text-2xl font-semibold">
+                    Sagas
+                  </h2>
+                  <p className="mt-1 text-sm text-mute">
+                    Filmes da franquia, em ordem de lançamento.
+                  </p>
+                  <div className="hide-scrollbar mt-5 -mx-4 flex gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
+                    {collections.map((collection) => (
+                      <CollectionCard
+                        key={collection.id}
+                        collection={collection}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {collectionId || results.length > 0 || collections.length === 0 ? (
+                <>
               <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
                 <div>
                   <h2 className="font-display text-2xl font-semibold">
-                    {results.length === 0
-                      ? 'Nenhum resultado'
-                      : `${results.length} resultado${results.length === 1 ? '' : 's'}`}
+                    {collectionId
+                      ? collectionName || 'Saga'
+                      : results.length === 0
+                        ? 'Nenhum resultado'
+                        : `${results.length} resultado${results.length === 1 ? '' : 's'}`}
                   </h2>
                   <p className="mt-1 text-sm text-mute">
-                    {query.trim()
-                      ? `Para “${query.trim()}”`
-                      : keywordName
-                        ? `Com a keyword “${keywordName}”`
-                        : hasFilters
-                          ? 'Com os filtros selecionados'
-                          : 'Sugestões do catálogo'}
+                    {collectionId
+                      ? 'Em ordem de lançamento'
+                      : query.trim()
+                        ? `Para “${query.trim()}”`
+                        : keywordName
+                          ? `Com a keyword “${keywordName}”`
+                          : hasFilters
+                            ? 'Com os filtros selecionados'
+                            : 'Sugestões do catálogo'}
                   </p>
+                  {collectionOverview ? (
+                    <p className="mt-3 max-w-3xl text-sm leading-relaxed text-mute">
+                      {collectionOverview}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
@@ -788,20 +916,24 @@ const SearchContent = () => {
                   key={enterKey}
                   className="catalog-enter grid grid-cols-2 gap-x-4 gap-y-8 sm:flex sm:flex-wrap sm:gap-4"
                 >
-                  {results.map((media) => (
+                  {results.map((media, index) => (
                     <MediaPoster
                       key={`${media.mediaType}-${media.id}`}
                       media={media}
                       fill
                       badge={
-                        media.voteAverage
-                          ? `★ ${media.voteAverage.toFixed(1)}`
-                          : undefined
+                        collectionId
+                          ? `${index + 1} · ${formatYear(media.releaseDate) ?? 'Em breve'}`
+                          : media.voteAverage
+                            ? `★ ${media.voteAverage.toFixed(1)}`
+                            : undefined
                       }
                     />
                   ))}
                 </div>
               )}
+                </>
+              ) : null}
             </section>
           ) : null}
         </div>

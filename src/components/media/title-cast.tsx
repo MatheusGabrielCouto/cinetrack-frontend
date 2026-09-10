@@ -4,16 +4,17 @@ import type { TmdbCredits } from '@/types'
 
 type TitleCastProps = {
   cast: TmdbCredits['cast']
+  title?: string
 }
 
-export const TitleCast = ({ cast }: TitleCastProps) => {
+export const TitleCast = ({ cast, title = 'Elenco' }: TitleCastProps) => {
   if (!cast.length) return null
 
   return (
     <section>
-      <h2 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
-        Elenco
-      </h2>
+        <h2 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
+          {title}
+        </h2>
       <div className="hide-scrollbar mt-5 flex gap-4 overflow-x-auto pb-2">
         {cast.slice(0, 18).map((person) => (
           <Link
