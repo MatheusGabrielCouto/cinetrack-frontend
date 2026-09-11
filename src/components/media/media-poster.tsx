@@ -1,11 +1,20 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
+import { IconCheck, IconPlus } from '@/components/icons'
+import {
+  libraryMediaKey,
+  queuePendingLibraryAdd,
+  useLibrarySnapshot,
+} from '@/components/library/library-snapshot'
 import { TmdbImage } from '@/components/media/tmdb-image'
+import { useAuth } from '@/components/providers/auth-provider'
+import { currentLocationPath, loginHref } from '@/lib/auth-href'
+import { MEDIA_TYPE_LABELS } from '@/lib/constants'
 import { formatYear } from '@/lib/utils'
 import type { TmdbMedia } from '@/types'
-import { MEDIA_TYPE_LABELS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 
 type MediaPosterProps = {
@@ -14,6 +23,7 @@ type MediaPosterProps = {
   compact?: boolean
   fill?: boolean
   href?: string
+  showAdd?: boolean
 }
 
 export const MediaPoster = ({
@@ -22,6 +32,7 @@ export const MediaPoster = ({
   compact = false,
   fill = false,
   href,
+  showAdd = true,
 }: MediaPosterProps) => {
   const resolvedHref =
     href ?? `/title/${media.mediaType.toLowerCase()}/${media.id}`
@@ -55,7 +66,7 @@ export const MediaPoster = ({
             </span>
           ) : null}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-2.5 pt-10 opacity-0 transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:opacity-100">
-            <h3 className="line-clamp-2 text-sm font-semibold leading-tight">
+            <h3 className="line-clamp-2 pr-10 text-sm font-semibold leading-tight">
               {media.title}
             </h3>
             <p className="mt-1 text-[11px] text-mute">
@@ -65,6 +76,7 @@ export const MediaPoster = ({
                 : ''}
             </p>
           </div>
+          {showAdd ? <PosterAddButton media={media} /> : null}
         </div>
       </article>
     </Link>
@@ -170,6 +182,51 @@ export const MediaRow = ({ title, items, badge, getHref }: MediaRowProps) => {
         </div>
       </div>
     </section>
+  )
+}
+
+const PosterAddButton = ({ media }: { media: TmdbMedia }) => {
+  const router = useRouter()
+  const { isAuthenticated } = useAuth()
+  const { getItem, addToList, savingKey } = useLibrarySnapshot()
+  const item = getItem(media.mediaType, media.id)
+  const isSaving = savingKey === libraryMediaKey(media.mediaType, media.id)
+
+  const handleAdd = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+
+    if (item || isSaving) return
+
+    if (!isAuthenticated) {
+      queuePendingLibraryAdd(media)
+      router.push(loginHref(currentLocationPath()))
+      return
+    }
+
+    void addToList(media)
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleAdd}
+      disabled={isSaving}
+      aria-label={
+        item
+          ? `${media.title} já está na sua lista`
+          : `Adicionar ${media.title} à lista`
+      }
+      className={cn(
+        'absolute bottom-2 right-2 z-20 flex size-8 items-center justify-center rounded-full border text-white shadow-[0_8px_20px_rgba(0,0,0,0.45)] transition duration-200',
+        item
+          ? 'border-ok/40 bg-ok text-bg'
+          : 'border-white/20 bg-black/75 hover:scale-105 hover:bg-accent',
+        isSaving ? 'opacity-70' : null,
+      )}
+    >
+      {item ? <IconCheck className="size-3.5" /> : <IconPlus className="size-3.5" />}
+    </button>
   )
 }
 

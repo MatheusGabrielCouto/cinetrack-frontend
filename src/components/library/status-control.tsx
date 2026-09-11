@@ -8,7 +8,7 @@ import { useTitleLibrary } from './title-library-context'
 const OPTIONS: WatchStatus[] = ['WANT_TO_WATCH', 'WATCHING', 'WATCHED']
 
 export const StatusControl = () => {
-  const { item, status, isSaving, persist } = useTitleLibrary()
+  const { item, status, isSaving, persist, hasPremiered } = useTitleLibrary()
 
   const handleStatusChange = (next: WatchStatus) => {
     void persist({ status: next })
@@ -22,18 +22,28 @@ export const StatusControl = () => {
     >
       {OPTIONS.map((option) => {
         const active = Boolean(item) && status === option
+        const blocked =
+          !hasPremiered && (option === 'WATCHING' || option === 'WATCHED')
+
         return (
           <button
             key={option}
             type="button"
-            disabled={isSaving}
+            disabled={isSaving || blocked}
             onClick={() => handleStatusChange(option)}
             aria-pressed={active}
+            title={
+              blocked
+                ? 'Disponível depois da estreia'
+                : WATCH_STATUS_LABELS[option]
+            }
             className={cn(
               'px-2 py-2.5 text-center text-xs font-semibold leading-snug transition duration-150 sm:text-sm',
               active
                 ? 'bg-ink text-bg'
-                : 'bg-surface-2 text-mute hover:text-ink',
+                : blocked
+                  ? 'bg-surface-2 text-mute/50'
+                  : 'bg-surface-2 text-mute hover:text-ink',
             )}
           >
             {WATCH_STATUS_LABELS[option]}

@@ -2,15 +2,21 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { IconChevronLeft, IconChevronRight, IconInfo, IconPlay, IconStar } from '@/components/icons'
+import { IconChevronLeft, IconChevronRight } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { TmdbImage } from '@/components/media/tmdb-image'
-import { MEDIA_TYPE_LABELS } from '@/lib/constants'
+import { WATCH_STATUS_LABELS } from '@/lib/constants'
 import { usePrefersReducedMotion } from '@/lib/use-prefers-reduced-motion'
 import { cn, formatYear } from '@/lib/utils'
 import type { TmdbMedia } from '@/types'
 
 const ROTATE_MS = 9000
+
+const STATUS_CHIPS = [
+  WATCH_STATUS_LABELS.WANT_TO_WATCH,
+  WATCH_STATUS_LABELS.WATCHING,
+  WATCH_STATUS_LABELS.WATCHED,
+]
 
 type LandingHeroProps = {
   items: TmdbMedia[]
@@ -44,46 +50,16 @@ export const LandingHero = ({ items }: LandingHeroProps) => {
     setActive((value) => (value + direction + slides.length) % slides.length)
   }
 
-  if (!current) {
-    return (
-      <section className="relative -mt-16 min-h-[92vh] overflow-hidden bg-surface">
-        <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/50 to-bg/70" />
-        <div className="relative mx-auto flex min-h-[92vh] w-full max-w-[1400px] flex-col justify-end px-4 pb-28 pt-36 sm:px-8">
-          <h1 className="max-w-2xl font-display text-5xl font-extrabold tracking-tight sm:text-7xl">
-            Filmes, séries e a sua lista.
-          </h1>
-          <p className="mt-4 max-w-lg text-base text-mute">
-            Assista o que está em alta e acompanhe o que você já começou.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/register">
-              <Button variant="light" size="lg">
-                <IconPlay className="size-5" />
-                Assista agora
-              </Button>
-            </Link>
-            <Link href="/login">
-              <Button variant="secondary" size="lg">
-                Entrar
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </section>
-    )
-  }
-
-  const registerHref = `/register?next=${encodeURIComponent(
-    `/title/${current.mediaType.toLowerCase()}/${current.id}`,
-  )}`
-  const year = formatYear(current.releaseDate)
-  const match = Math.round(current.voteAverage * 10)
+  const year = formatYear(current?.releaseDate)
+  const titleHref = current
+    ? `/title/${current.mediaType.toLowerCase()}/${current.id}`
+    : '/discover'
 
   return (
     <section
-      className="relative -mt-16 min-h-[92vh] overflow-hidden sm:min-h-[96vh]"
-      aria-roledescription="carrossel"
-      aria-label="Títulos em destaque"
+      className="relative -mt-16 min-h-[88vh] overflow-hidden sm:min-h-[90vh]"
+      aria-roledescription={canRotate ? 'carrossel' : undefined}
+      aria-label="Apresentação do CineTrack"
     >
       {slides.map((item, index) => (
         <div
@@ -109,15 +85,19 @@ export const LandingHero = ({ items }: LandingHeroProps) => {
         </div>
       ))}
 
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-bg from-10% via-bg/80 to-transparent" />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-bg via-bg/25 to-black/45" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-bg to-transparent" />
+      {!current ? (
+        <div className="absolute inset-0 bg-surface" />
+      ) : null}
+
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-bg from-[12%] via-bg/85 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-bg via-bg/40 to-black/50" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-bg to-transparent" />
 
       {canRotate ? (
         <>
           <button
             type="button"
-            aria-label="Título anterior"
+            aria-label="Capa anterior do catálogo"
             onClick={() => handleStep(-1)}
             className="absolute left-2 top-1/2 z-20 hidden size-12 -translate-y-1/2 items-center justify-center text-white/70 transition hover:text-white md:flex"
           >
@@ -125,7 +105,7 @@ export const LandingHero = ({ items }: LandingHeroProps) => {
           </button>
           <button
             type="button"
-            aria-label="Próximo título"
+            aria-label="Próxima capa do catálogo"
             onClick={() => handleStep(1)}
             className="absolute right-2 top-1/2 z-20 hidden size-12 -translate-y-1/2 items-center justify-center text-white/70 transition hover:text-white md:flex"
           >
@@ -134,55 +114,62 @@ export const LandingHero = ({ items }: LandingHeroProps) => {
         </>
       ) : null}
 
-      <div className="relative mx-auto flex min-h-[92vh] w-full max-w-[1400px] flex-col justify-end px-4 pb-24 pt-36 sm:min-h-[96vh] sm:px-8 sm:pb-28">
-        <div key={`${current.mediaType}-${current.id}`} className="hero-copy-in max-w-2xl">
-          <h1 className="font-display text-[clamp(2.6rem,8vw,5.5rem)] font-extrabold leading-[0.92] tracking-tight drop-shadow-[0_8px_28px_rgba(0,0,0,0.65)]">
-            {current.title}
+      <div className="relative mx-auto flex min-h-[88vh] w-full max-w-[1400px] flex-col justify-end px-4 pb-20 pt-36 sm:min-h-[90vh] sm:px-8 sm:pb-24">
+        <div className="hero-copy-in max-w-2xl">
+          <h1 className="font-display text-[clamp(2.6rem,8vw,5.4rem)] font-extrabold leading-[0.92] tracking-tight drop-shadow-[0_8px_28px_rgba(0,0,0,0.65)]">
+            Acompanhe o que você assiste.
           </h1>
-
-          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-            {match > 0 ? (
-              <span className="font-semibold text-ok">{match}% relevante</span>
-            ) : null}
-            {year ? <span className="text-mute">{year}</span> : null}
-            <span className="rounded-sm border border-white/35 px-1.5 py-0.5 text-[11px] font-medium text-ink">
-              {MEDIA_TYPE_LABELS[current.mediaType]}
-            </span>
-            {current.voteAverage > 0 ? (
-              <span className="inline-flex items-center gap-1 text-spot">
-                <IconStar className="size-3.5" />
-                {current.voteAverage.toFixed(1)}
-              </span>
-            ) : null}
-          </div>
-
-          <p className="mt-4 max-w-xl text-sm leading-relaxed text-ink/90 sm:text-lg line-clamp-3">
-            {current.overview || 'Sinopse indisponível.'}
+          <p className="mt-5 max-w-xl text-base leading-relaxed text-ink/90 sm:text-lg">
+            Monte a lista, marque o episódio e dê nota. O filme você vê no
+            streaming ou no cinema. Aqui fica o controle.
           </p>
+
+          <ul className="mt-6 flex flex-wrap gap-2" aria-label="Status da lista">
+            {STATUS_CHIPS.map((label) => (
+              <li
+                key={label}
+                className="rounded-sm border border-white/25 bg-black/35 px-2.5 py-1 text-[13px] font-medium text-ink"
+              >
+                {label}
+              </li>
+            ))}
+          </ul>
         </div>
 
-        <div className="mt-7 flex flex-wrap items-center gap-3">
-          <Link href={registerHref}>
-            <Button variant="light" size="lg" className="h-12 min-w-[10rem] px-7 text-base">
-              <IconPlay className="size-5" />
-              Assista agora
+        <div className="mt-8 flex flex-wrap items-center gap-3">
+          <Link href="/register">
+            <Button variant="primary" size="lg" className="h-12 min-w-[11rem] px-7 text-base">
+              Criar conta
             </Button>
           </Link>
-          <Link href={registerHref}>
+          <Link href="/discover">
             <Button variant="secondary" size="lg" className="h-12 px-6 text-base">
-              <IconInfo className="size-5" />
-              Mais informações
+              Explorar catálogo
             </Button>
           </Link>
         </div>
+
+        {current ? (
+          <p className="mt-8 max-w-xl text-sm text-mute">
+            Capa do catálogo:{' '}
+            <Link
+              href={titleHref}
+              className="font-medium text-ink underline-offset-4 hover:underline"
+            >
+              {current.title}
+              {year ? ` (${year})` : ''}
+            </Link>
+            . Ficha e onde assistir, sem reprodução.
+          </p>
+        ) : null}
 
         {canRotate ? (
-          <div className="mt-8 flex items-center gap-1">
+          <div className="mt-6 flex items-center gap-1">
             {slides.map((item, index) => (
               <button
                 key={`${item.mediaType}-${item.id}-dot`}
                 type="button"
-                aria-label={`Mostrar ${item.title}`}
+                aria-label={`Mostrar capa de ${item.title}`}
                 aria-current={index === active}
                 onClick={() => handleSelect(index)}
                 className="flex h-11 items-center px-1"
@@ -209,7 +196,7 @@ export const LandingHero = ({ items }: LandingHeroProps) => {
       </div>
 
       <p className="sr-only" aria-live="polite">
-        {current.title}
+        {current ? `Capa do catálogo: ${current.title}` : 'CineTrack'}
       </p>
     </section>
   )

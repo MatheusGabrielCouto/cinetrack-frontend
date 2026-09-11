@@ -3,7 +3,10 @@
 import { useEffect, useState } from 'react'
 import { IconPlay } from '@/components/icons'
 import { useTitleLibrary } from '@/components/library/title-library-context'
+import { useAuth } from '@/components/providers/auth-provider'
+import { currentLocationPath, loginHref } from '@/lib/auth-href'
 import { formatEpisodeCode } from '@/lib/library/progress'
+import { useRouter } from 'next/navigation'
 
 export const TrackingDock = () => {
   const {
@@ -15,7 +18,10 @@ export const TrackingDock = () => {
     isLoading,
     isSaving,
     persist,
+    hasPremiered,
   } = useTitleLibrary()
+  const { isAuthenticated } = useAuth()
+  const router = useRouter()
   const [isVisible, setIsVisible] = useState(false)
 
   useEffect(() => {
@@ -33,8 +39,12 @@ export const TrackingDock = () => {
       : null
 
   const handleContinue = () => {
+    if (!isAuthenticated) {
+      router.push(loginHref(currentLocationPath()))
+      return
+    }
     if (mediaType === 'TV') {
-      if (!item || status === 'WANT_TO_WATCH') {
+      if (hasPremiered && (!item || status === 'WANT_TO_WATCH')) {
         void persist({
           status: 'WATCHING',
           currentSeason: currentSeason ?? 1,
@@ -45,19 +55,23 @@ export const TrackingDock = () => {
       return
     }
 
-    if (status !== 'WATCHED') {
+    if (hasPremiered && status !== 'WATCHED') {
       void persist({ status: 'WATCHED' })
     }
   }
 
   const dockLabel =
-    mediaType === 'TV'
-      ? status === 'WATCHING' && continueLabel
-        ? continueLabel
-        : 'Episódios'
-      : status === 'WATCHED'
-        ? 'Assistido'
-        : 'Visto'
+    !isAuthenticated
+      ? 'Entrar para salvar'
+      : !hasPremiered
+        ? 'Em breve'
+        : mediaType === 'TV'
+          ? status === 'WATCHING' && continueLabel
+            ? continueLabel
+            : 'Episódios'
+          : status === 'WATCHED'
+            ? 'Assistido'
+            : 'Visto'
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/95 px-4 py-3 backdrop-blur-md xl:hidden">
@@ -65,7 +79,11 @@ export const TrackingDock = () => {
         <button
           type="button"
           onClick={handleContinue}
-          disabled={isSaving || (mediaType === 'MOVIE' && status === 'WATCHED')}
+          disabled={
+            isSaving ||
+            (isAuthenticated && mediaType === 'MOVIE' && status === 'WATCHED') ||
+            (isAuthenticated && !hasPremiered && mediaType === 'MOVIE')
+          }
           className="inline-flex shrink-0 items-center gap-1.5 rounded bg-accent px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
         >
           <IconPlay className="size-3.5" />

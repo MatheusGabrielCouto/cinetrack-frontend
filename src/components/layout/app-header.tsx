@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/components/providers/auth-provider'
+import { currentLocationPath, loginHref, registerHref } from '@/lib/auth-href'
 import { Dropdown } from '@/components/ui/dropdown'
 import { Button } from '@/components/ui/button'
 import { UserAvatar } from '@/components/ui/user-avatar'
@@ -84,6 +85,14 @@ export const AppHeader = () => {
     return () => media.removeEventListener('change', handleChange)
   }, [isAuthenticated])
 
+  const handleLogin = () => {
+    router.push(loginHref(currentLocationPath()))
+  }
+
+  const handleRegister = () => {
+    router.push(registerHref(currentLocationPath()))
+  }
+
   const handleLogout = () => {
     logout()
     router.push('/')
@@ -107,6 +116,8 @@ export const AppHeader = () => {
     pathname.startsWith('/for-you') ||
     pathname.startsWith('/calendar') ||
     pathname.startsWith('/stats') ||
+    pathname.startsWith('/search') ||
+    pathname.startsWith('/onboarding') ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/register')
   const moreActive = moreLinks.some((link) => pathname.startsWith(link.href))
@@ -173,7 +184,22 @@ export const AppHeader = () => {
                   ))}
                 </Dropdown>
               </nav>
-            ) : null}
+            ) : (
+              <nav className="hidden items-center gap-1 md:flex" aria-label="Catálogo">
+                <Link
+                  href="/discover"
+                  className={cn(navLinkClass(pathname.startsWith('/discover')), 'whitespace-nowrap')}
+                >
+                  Catálogo
+                </Link>
+                <Link
+                  href="/search"
+                  className={cn(navLinkClass(pathname.startsWith('/search')), 'whitespace-nowrap')}
+                >
+                  Busca
+                </Link>
+              </nav>
+            )}
           </div>
 
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
@@ -261,7 +287,7 @@ export const AppHeader = () => {
                         ? 'border-white/40 bg-black/25 text-ink hover:bg-white/10'
                         : undefined,
                     )}
-                    onClick={() => router.push('/login')}
+                    onClick={handleLogin}
                   >
                     Entrar
                   </Button>
@@ -270,7 +296,7 @@ export const AppHeader = () => {
                   <Button
                     size="sm"
                     className="hidden h-8 px-2.5 text-xs md:inline-flex sm:h-9 sm:px-3 sm:text-sm"
-                    onClick={() => router.push('/register')}
+                    onClick={handleRegister}
                   >
                     Criar conta
                   </Button>
@@ -376,18 +402,33 @@ export const AppHeader = () => {
               <div className="flex min-h-full flex-col justify-between">
                 <div className="pointer-events-auto">
                   <p className="font-display text-4xl font-extrabold tracking-tight">
-                    Filmes e séries, na sua lista.
+                    Sua lista de filmes e séries.
                   </p>
                   <p className="mt-3 max-w-sm text-base leading-relaxed text-white/70">
-                    Entre para acompanhar o que você assiste e salvar o que quer ver.
+                    Salve, acompanhe e anote. Sem player. O catálogo é para
+                    escolher o que entra na lista.
                   </p>
+                  <div className="mt-8 flex flex-col gap-1">
+                    <Link
+                      href="/discover"
+                      className="rounded-md py-2 text-lg font-medium text-white/80"
+                    >
+                      Catálogo
+                    </Link>
+                    <Link
+                      href="/search"
+                      className="rounded-md py-2 text-lg font-medium text-white/80"
+                    >
+                      Busca
+                    </Link>
+                  </div>
                 </div>
                 <div className="pointer-events-auto flex flex-col gap-3">
                   {pathname.startsWith('/register') ? null : (
                     <Button
                       size="lg"
                       className="h-12 w-full"
-                      onClick={() => router.push('/register')}
+                      onClick={handleRegister}
                     >
                       Criar conta
                     </Button>
@@ -397,7 +438,7 @@ export const AppHeader = () => {
                       variant="ghost"
                       size="lg"
                       className="h-12 w-full border-white/35 bg-white/10 text-ink hover:bg-white/20"
-                      onClick={() => router.push('/login')}
+                      onClick={handleLogin}
                     >
                       Entrar
                     </Button>

@@ -6,6 +6,9 @@ import { listsApi } from '@/lib/api/cinetrack'
 import { ApiError } from '@/lib/api/client'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/components/providers/auth-provider'
+import { loginHref, registerHref } from '@/lib/auth-href'
+import { usePathname } from 'next/navigation'
 import type { ListSummary, MediaType } from '@/types'
 
 type AddToListPanelProps = {
@@ -25,6 +28,8 @@ export const AddToListPanel = ({
   mediaType,
   coverUrl,
 }: AddToListPanelProps) => {
+  const { isAuthenticated } = useAuth()
+  const pathname = usePathname()
   const [memberships, setMemberships] = useState<Membership[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -70,8 +75,12 @@ export const AddToListPanel = ({
   }
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setIsLoading(false)
+      return
+    }
     void load()
-  }, [tmdbId, mediaType])
+  }, [isAuthenticated, tmdbId, mediaType])
 
   const handleToggle = async (listId: string) => {
     const current = memberships.find((entry) => entry.list.id === listId)
@@ -182,6 +191,27 @@ export const AddToListPanel = ({
     } finally {
       setIsCreating(false)
     }
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <section className="mt-4 rounded-xl bg-surface p-5">
+        <h3 className="text-sm font-semibold">Coleções</h3>
+        <p className="mt-1 text-sm text-mute">
+          Entre para guardar este título numa coleção.
+        </p>
+        <div className="mt-4 flex gap-2">
+          <Link href={loginHref(pathname)}>
+            <Button size="sm">Entrar</Button>
+          </Link>
+          <Link href={registerHref(pathname)}>
+            <Button size="sm" variant="ghost">
+              Criar conta
+            </Button>
+          </Link>
+        </div>
+      </section>
+    )
   }
 
   return (

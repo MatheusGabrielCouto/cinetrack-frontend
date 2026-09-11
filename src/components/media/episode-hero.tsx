@@ -12,7 +12,7 @@ import {
   nextEpisode,
 } from '@/lib/library/progress'
 import { formatRuntime } from '@/lib/tmdb/client'
-import { cn, formatRating } from '@/lib/utils'
+import { cn, formatRating, isUnreleased } from '@/lib/utils'
 import type { TmdbEpisodeDetails, TmdbMediaDetails } from '@/types'
 
 type EpisodeHeroProps = {
@@ -35,6 +35,7 @@ export const EpisodeHero = ({ show, episode }: EpisodeHeroProps) => {
     markEpisodeWatched,
     continueFromEpisode,
     rewindToEpisode,
+    hasPremiered,
   } = useTitleLibrary()
 
   const mark = episodeMark({
@@ -56,9 +57,11 @@ export const EpisodeHero = ({ show, episode }: EpisodeHeroProps) => {
     episode.episodeNumber,
   )
   const airDate = formatDate(episode.airDate)
+  const unaired = !hasPremiered || isUnreleased(episode.airDate)
   const showHref = `/title/tv/${show.id}`
 
   const handlePrimary = () => {
+    if (unaired) return
     if (mark === 'watched') {
       void rewindToEpisode(episode.seasonNumber, episode.episodeNumber)
       return
@@ -130,25 +133,32 @@ export const EpisodeHero = ({ show, episode }: EpisodeHeroProps) => {
           <div className="mt-8 flex flex-wrap items-center gap-2">
             <button
               type="button"
-              disabled={isSaving}
+              disabled={isSaving || unaired}
               onClick={handlePrimary}
+              title={unaired ? 'Disponível depois da estreia' : undefined}
               className={cn(
                 'inline-flex items-center gap-2 rounded px-5 py-2.5 text-sm font-semibold transition duration-200 disabled:opacity-50',
-                mark === 'current'
-                  ? 'bg-ink text-bg hover:bg-ink/90'
-                  : 'bg-accent text-white hover:bg-accent-deep',
+                unaired
+                  ? 'bg-white/12 text-white'
+                  : mark === 'current'
+                    ? 'bg-ink text-bg hover:bg-ink/90'
+                    : 'bg-accent text-white hover:bg-accent-deep',
               )}
             >
-              {mark === 'watched' ? (
+              {unaired ? (
+                <IconPlay className="size-4" />
+              ) : mark === 'watched' ? (
                 <IconCheck className="size-4" />
               ) : (
                 <IconPlay className="size-4" />
               )}
-              {mark === 'watched'
-                ? 'Rever daqui'
-                : mark === 'current'
-                  ? 'Marcar como visto'
-                  : 'Continuar daqui'}
+              {unaired
+                ? 'Em breve'
+                : mark === 'watched'
+                  ? 'Rever daqui'
+                  : mark === 'current'
+                    ? 'Marcar como visto'
+                    : 'Continuar daqui'}
             </button>
           </div>
 

@@ -69,6 +69,7 @@ export const TitleHero = ({
     isSaving,
     persist,
     seasons,
+    hasPremiered,
   } = useTitleLibrary()
 
   const [trailerPlaying, setTrailerPlaying] = useState(false)
@@ -83,6 +84,8 @@ export const TitleHero = ({
       : null
 
   const handleContinue = () => {
+    if (!hasPremiered) return
+
     const firstSeason = regularSeasons(seasons)[0]?.seasonNumber ?? 1
 
     if (status === 'WATCHED') {
@@ -103,6 +106,7 @@ export const TitleHero = ({
   }
 
   const handleMarkWatched = () => {
+    if (!hasPremiered) return
     void persist({ status: 'WATCHED' })
   }
 
@@ -259,21 +263,23 @@ export const TitleHero = ({
                 <button
                   type="button"
                   onClick={handleContinue}
-                  disabled={isSaving}
+                  disabled={isSaving || !hasPremiered}
                   className="inline-flex items-center gap-2 rounded bg-accent px-5 py-2.5 text-sm font-semibold text-white transition duration-200 hover:bg-accent-deep disabled:opacity-50"
                 >
                   <IconPlay className="size-4" />
-                  {status === 'WATCHING' && continueLabel
-                    ? `Continuar ${continueLabel}`
-                    : status === 'WATCHED'
-                      ? 'Assistir de novo'
-                      : 'Começar a assistir'}
+                  {!hasPremiered
+                    ? 'Em breve'
+                    : status === 'WATCHING' && continueLabel
+                      ? `Continuar ${continueLabel}`
+                      : status === 'WATCHED'
+                        ? 'Assistir de novo'
+                        : 'Começar a assistir'}
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={handleMarkWatched}
-                  disabled={isSaving || status === 'WATCHED'}
+                  disabled={isSaving || status === 'WATCHED' || !hasPremiered}
                   className={cn(
                     'rounded px-5 py-2.5 text-sm font-semibold transition duration-200 disabled:opacity-50',
                     status === 'WATCHED'
@@ -281,7 +287,11 @@ export const TitleHero = ({
                       : 'bg-accent text-white hover:bg-accent-deep',
                   )}
                 >
-                  {status === 'WATCHED' ? 'Assistido' : 'Marcar como assistido'}
+                  {!hasPremiered
+                    ? 'Em breve'
+                    : status === 'WATCHED'
+                      ? 'Assistido'
+                      : 'Marcar como assistido'}
                 </button>
               )}
 

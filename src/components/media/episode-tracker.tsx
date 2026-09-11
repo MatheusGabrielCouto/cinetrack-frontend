@@ -10,7 +10,7 @@ import {
   formatEpisodeCode,
   seasonWatchedCount,
 } from '@/lib/library/progress'
-import { cn, formatRating } from '@/lib/utils'
+import { cn, formatRating, isUnreleased } from '@/lib/utils'
 import type { TmdbSeasonDetails, TmdbSeasonSummary } from '@/types'
 import { useTitleLibrary } from '@/components/library/title-library-context'
 
@@ -46,6 +46,7 @@ export const EpisodeTracker = ({
     continueFromEpisode,
     markSeasonWatched,
     rewindToEpisode,
+    hasPremiered,
   } = useTitleLibrary()
 
   const handleScrollToCurrent = () => {
@@ -126,6 +127,7 @@ export const EpisodeTracker = ({
               ) : null}
             </div>
             {season.seasonNumber > 0 &&
+            hasPremiered &&
             seasonWatchedCount({
               status: item ? status : null,
               seasonNumber: season.seasonNumber,
@@ -155,8 +157,10 @@ export const EpisodeTracker = ({
               })
               const isCurrent = mark === 'current'
               const airDate = formatDate(episode.airDate)
+              const unaired = !hasPremiered || isUnreleased(episode.airDate)
 
               const handlePrimary = () => {
+                if (unaired) return
                 if (mark === 'watched') {
                   void rewindToEpisode(episode.seasonNumber, episode.episodeNumber)
                   return
@@ -258,22 +262,31 @@ export const EpisodeTracker = ({
 
                       <button
                         type="button"
-                        disabled={isSaving}
+                        disabled={isSaving || unaired}
                         onClick={handlePrimary}
+                        title={
+                          unaired
+                            ? 'Disponível depois da estreia'
+                            : undefined
+                        }
                         className={cn(
                           'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition duration-200',
-                          mark === 'current'
-                            ? 'bg-ink text-bg'
-                            : mark === 'watched'
-                              ? 'bg-surface-2 text-mute hover:text-ink'
-                              : 'bg-surface-2 text-ink hover:bg-line',
+                          unaired
+                            ? 'bg-surface-2 text-mute/50'
+                            : mark === 'current'
+                              ? 'bg-ink text-bg'
+                              : mark === 'watched'
+                                ? 'bg-surface-2 text-mute hover:text-ink'
+                                : 'bg-surface-2 text-ink hover:bg-line',
                         )}
                       >
-                        {mark === 'watched'
-                          ? 'Rever daqui'
-                          : mark === 'current'
-                            ? 'Marcar como visto'
-                            : 'Continuar daqui'}
+                        {unaired
+                          ? 'Em breve'
+                          : mark === 'watched'
+                            ? 'Rever daqui'
+                            : mark === 'current'
+                              ? 'Marcar como visto'
+                              : 'Continuar daqui'}
                       </button>
                     </div>
 

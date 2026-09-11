@@ -6,6 +6,7 @@ import type { ContentFilter } from '@/components/media/filter-bar'
 import { TmdbImage } from '@/components/media/tmdb-image'
 import { libraryApi } from '@/lib/api/cinetrack'
 import { tmdbApi } from '@/lib/tmdb/client'
+import { useAuth } from '@/components/providers/auth-provider'
 import type { LibraryItem, TmdbMedia } from '@/types'
 
 type ContinueItem = LibraryItem & { media: TmdbMedia | null }
@@ -30,10 +31,16 @@ const subtitleFor = (item: ContinueItem) => {
 export const ContinueWatchingRow = ({
   contentFilter = 'all',
 }: ContinueWatchingRowProps) => {
+  const { isAuthenticated } = useAuth()
   const [items, setItems] = useState<ContinueItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setItems([])
+      setIsLoading(false)
+      return
+    }
     const load = async () => {
       setIsLoading(true)
       try {
@@ -78,7 +85,7 @@ export const ContinueWatchingRow = ({
     }
 
     void load()
-  }, [contentFilter])
+  }, [contentFilter, isAuthenticated])
 
   if (isLoading || items.length === 0) return null
 

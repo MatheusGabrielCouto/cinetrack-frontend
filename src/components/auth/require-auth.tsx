@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/providers/auth-provider'
+import { currentLocationPath, loginHref } from '@/lib/auth-href'
 
 export const RequireAuth = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isLoading } = useAuth()
@@ -10,7 +11,7 @@ export const RequireAuth = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      router.replace('/login')
+      router.replace(loginHref(currentLocationPath()))
     }
   }, [isAuthenticated, isLoading, router])
 

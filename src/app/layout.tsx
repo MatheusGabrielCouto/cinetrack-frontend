@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Figtree, Syne } from 'next/font/google'
+import { LibrarySnapshotProvider } from '@/components/library/library-snapshot'
 import { AuthProvider } from '@/components/providers/auth-provider'
 import { AppHeader } from '@/components/layout/app-header'
 import './globals.css'
@@ -22,7 +23,7 @@ export const metadata: Metadata = {
     template: '%s · CineTrack',
   },
   description:
-    'Descubra, organize e acompanhe filmes e séries. Metadados do TMDB, tracking no CineTrack.',
+    'Lista, progresso e notas de filmes e séries. O CineTrack não reproduz conteúdo. Catálogo com dados do TMDB.',
   applicationName: 'CineTrack',
   icons: {
     icon: [{ url: '/icon.png', type: 'image/png', sizes: '1024x1024' }],
@@ -48,8 +49,10 @@ export default function RootLayout({
       </head>
       <body className="min-h-full font-sans antialiased">
         <AuthProvider>
-          <AppHeader />
-          <main className="flex-1">{children}</main>
+          <LibrarySnapshotProvider>
+            <AppHeader />
+            <main className="flex-1">{children}</main>
+          </LibrarySnapshotProvider>
         </AuthProvider>
       </body>
     </html>

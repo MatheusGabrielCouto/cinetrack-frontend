@@ -148,6 +148,7 @@ export type TmdbMedia = {
   backdropPath: string | null
   releaseDate: string | null
   voteAverage: number
+  voteCount?: number
   genreIds?: number[]
 }
 
@@ -191,6 +192,7 @@ export type TmdbPagedMedia = {
   items: TmdbMedia[]
   page: number
   totalPages: number
+  totalResults: number
 }
 
 export type TmdbKeyword = {

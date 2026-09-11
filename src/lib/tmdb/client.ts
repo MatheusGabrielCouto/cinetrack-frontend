@@ -37,6 +37,7 @@ type TmdbMovieResult = {
   release_date?: string
   first_air_date?: string
   vote_average: number
+  vote_count?: number
   media_type?: 'movie' | 'tv' | 'person'
   genre_ids?: number[]
 }
@@ -161,6 +162,7 @@ const mapMedia = (
     backdropPath: item.backdrop_path,
     releaseDate: item.release_date ?? item.first_air_date ?? null,
     voteAverage: item.vote_average ?? 0,
+    voteCount: item.vote_count ?? 0,
     genreIds: item.genre_ids ?? undefined,
   }
 }
@@ -183,11 +185,13 @@ const toPagedMedia = (
   results: TmdbMovieResult[],
   page: number,
   totalPages: number,
+  totalResults = 0,
   fallbackType?: MediaType,
 ): TmdbPagedMedia => ({
   items: mapAll(results, fallbackType),
   page,
   totalPages: Math.min(Math.max(totalPages, 1), 500),
+  totalResults: Math.max(totalResults, 0),
 })
 
 const mapCredits = (credits?: TmdbDetailsRaw['credits']): TmdbCredits => ({
@@ -459,7 +463,7 @@ export const tmdbApi = {
     page = 1,
   ): Promise<TmdbPagedMedia> => {
     if (!query.trim()) {
-      return { items: [], page: 1, totalPages: 1 }
+      return { items: [], page: 1, totalPages: 1, totalResults: 0 }
     }
 
     const path =
@@ -473,6 +477,7 @@ export const tmdbApi = {
       results: TmdbMovieResult[]
       page?: number
       total_pages?: number
+      total_results?: number
     }>(path, {
       query: query.trim(),
       include_adult: 'false',
@@ -491,6 +496,7 @@ export const tmdbApi = {
       ),
       data.page ?? page,
       data.total_pages ?? 1,
+      data.total_results ?? data.results.length,
       fallback,
     )
   },
@@ -556,6 +562,7 @@ export const tmdbApi = {
       results: TmdbMovieResult[]
       page?: number
       total_pages?: number
+      total_results?: number
     }>(`/trending/${media}/week`, {
       page: String(Math.max(page, 1)),
     })
@@ -564,6 +571,7 @@ export const tmdbApi = {
       data.results,
       data.page ?? page,
       data.total_pages ?? 1,
+      data.total_results ?? data.results.length,
     )
   },
 
@@ -627,12 +635,14 @@ export const tmdbApi = {
       results: TmdbMovieResult[]
       page?: number
       total_pages?: number
+      total_results?: number
     }>(path, { ...params, page: String(page) })
 
     return toPagedMedia(
       data.results,
       data.page ?? page,
       data.total_pages ?? 1,
+      data.total_results ?? data.results.length,
       mediaType,
     )
   },
@@ -722,6 +732,16 @@ export const tmdbApi = {
       mediaType === 'MOVIE'
         ? `/movie/${id}/recommendations`
         : `/tv/${id}/recommendations`
+    const data = await tmdbFetch<{ results: TmdbMovieResult[] }>(path)
+    return mapList(data.results, mediaType, 20)
+  },
+
+  similar: async (
+    mediaType: MediaType,
+    id: number,
+  ): Promise<TmdbMedia[]> => {
+    const path =
+      mediaType === 'MOVIE' ? `/movie/${id}/similar` : `/tv/${id}/similar`
     const data = await tmdbFetch<{ results: TmdbMovieResult[] }>(path)
     return mapList(data.results, mediaType, 16)
   },

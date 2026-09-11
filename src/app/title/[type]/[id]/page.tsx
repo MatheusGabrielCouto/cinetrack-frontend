@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { RequireAuth } from '@/components/auth/require-auth'
 import { IconPlay } from '@/components/icons'
 import { LibraryPanel } from '@/components/library/library-panel'
 import { TitleLibraryProvider, useTitleLibrary } from '@/components/library/title-library-context'
@@ -69,7 +68,7 @@ export default function TitleDetailPage() {
   }, [mediaType, tmdbId])
 
   return (
-    <RequireAuth>
+    <>
       {isLoading ? (
         <TitleDetailSkeleton />
       ) : error || !details || !mediaType ? (
@@ -82,11 +81,12 @@ export default function TitleDetailPage() {
           mediaType={details.mediaType}
           genreIds={details.genres.map((genre) => genre.id)}
           seasons={details.seasons}
+          releaseDate={details.releaseDate}
         >
           <TitleDetailView details={details} />
         </TitleLibraryProvider>
       )}
-    </RequireAuth>
+    </>
   )
 }
 
@@ -315,7 +315,7 @@ const TitleDetailView = ({ details }: { details: TmdbMediaDetails }) => {
 
               {details.keywords.length ? (
                 <div className="mt-6">
-                  <p className="text-sm text-mute">Keywords</p>
+                  <p className="text-sm text-mute">Palavras-chave</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {details.keywords.map((keyword) => {
                       const params = new URLSearchParams({
@@ -327,7 +327,7 @@ const TitleDetailView = ({ details }: { details: TmdbMediaDetails }) => {
                         <Link
                           key={keyword.id}
                           href={`/search?${params.toString()}`}
-                          aria-label={`Buscar títulos com a keyword ${keyword.name}`}
+                          aria-label={`Buscar títulos com a palavra-chave ${keyword.name}`}
                           tabIndex={0}
                           className="rounded-full bg-surface-2 px-3 py-1 text-sm transition hover:bg-white/15 hover:text-white"
                         >

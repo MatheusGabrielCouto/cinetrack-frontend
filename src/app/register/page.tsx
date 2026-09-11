@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { AuthScreen } from '@/components/auth/auth-screen'
 import { useAuth } from '@/components/providers/auth-provider'
@@ -9,10 +9,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ApiError } from '@/lib/api/client'
 import { safeInternalPath } from '@/lib/safe-path'
+import { withNext } from '@/lib/auth-href'
 
 const nextPath = () =>
   safeInternalPath(new URLSearchParams(window.location.search).get('next')) ??
   '/discover'
+
+const afterRegisterPath = () => {
+  const next = nextPath()
+  if (next === '/discover' || next === '/for-you') return '/onboarding'
+  return withNext('/onboarding', next)
+}
 
 export default function RegisterPage() {
   const { register, isAuthenticated, isLoading } = useAuth()
@@ -23,13 +30,14 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [switchHref, setSwitchHref] = useState('/login')
+  const justRegistered = useRef(false)
 
   useEffect(() => {
     setSwitchHref(`/login${window.location.search}`)
   }, [])
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
+    if (!isLoading && isAuthenticated && !justRegistered.current) {
       router.replace(nextPath())
     }
   }, [isAuthenticated, isLoading, router])
@@ -41,7 +49,8 @@ export default function RegisterPage() {
 
     try {
       await register(name, email, password)
-      router.push(nextPath())
+      justRegistered.current = true
+      router.push(afterRegisterPath())
     } catch (err) {
       setError(
         err instanceof ApiError ? err.message : 'Não foi possível criar a conta',

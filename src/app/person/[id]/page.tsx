@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { RequireAuth } from '@/components/auth/require-auth'
 import { IconClose } from '@/components/icons'
 import { MediaRow } from '@/components/media/media-poster'
 import { PersonHero } from '@/components/media/person-hero'
@@ -172,18 +171,14 @@ export default function PersonDetailPage() {
     void load()
   }, [personId])
 
-  return (
-    <RequireAuth>
-      {isLoading ? (
-        <PersonDetailSkeleton />
-      ) : error || !person ? (
-        <div className="mx-auto max-w-[1400px] px-4 py-24 sm:px-8">
-          <p className="text-accent">{error ?? 'Pessoa não encontrada'}</p>
-        </div>
-      ) : (
-        <PersonDetailView person={person} />
-      )}
-    </RequireAuth>
+  return isLoading ? (
+    <PersonDetailSkeleton />
+  ) : error || !person ? (
+    <div className="mx-auto max-w-[1400px] px-4 py-24 sm:px-8">
+      <p className="text-accent">{error ?? 'Pessoa não encontrada'}</p>
+    </div>
+  ) : (
+    <PersonDetailView person={person} />
   )
 }
 

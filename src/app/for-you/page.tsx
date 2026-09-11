@@ -2,10 +2,13 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
+import { OnboardingGate } from '@/components/auth/onboarding-gate'
 import { RequireAuth } from '@/components/auth/require-auth'
 import { IconStar } from '@/components/icons'
+import { MediaRow } from '@/components/media/media-poster'
 import { TmdbImage } from '@/components/media/tmdb-image'
 import { Button } from '@/components/ui/button'
+import { useAuth } from '@/components/providers/auth-provider'
 import { libraryApi } from '@/lib/api/cinetrack'
 import { ApiError } from '@/lib/api/client'
 import { MEDIA_TYPE_LABELS } from '@/lib/constants'
@@ -13,7 +16,12 @@ import {
   getRecommendations,
   type RecommendationItem,
 } from '@/lib/recommendations/engine'
-import type { TasteProfile } from '@/lib/recommendations/taste-profile'
+import { readPreferredGenres } from '@/lib/recommendations/preferred-genres'
+import {
+  hasTasteSignal,
+  MIN_SIGNAL,
+  type TasteProfile,
+} from '@/lib/recommendations/taste-profile'
 import { tmdbApi } from '@/lib/tmdb/client'
 import { cn, formatYear } from '@/lib/utils'
 import type { MediaType, TmdbMedia } from '@/types'
@@ -31,8 +39,6 @@ const FILTER_TABS: Array<{ id: MediaFilter; label: string }> = [
   { id: 'TV', label: 'Séries' },
 ]
 
-const MIN_SIGNAL = 3
-
 const formatNameList = (names: string[]) => {
   if (names.length === 0) return ''
   if (names.length === 1) return names[0]
@@ -40,9 +46,8 @@ const formatNameList = (names: string[]) => {
   return `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`
 }
 
-const mediaKey = (media: TmdbMedia) => `${media.mediaType}-${media.id}`
-
 export default function ForYouPage() {
+  const { user } = useAuth()
   const [filter, setFilter] = useState<MediaFilter>('ALL')
   const [items, setItems] = useState<RecommendationItem[]>([])
   const [profile, setProfile] = useState<TasteProfile | null>(null)
@@ -62,9 +67,7 @@ export default function ForYouPage() {
         const missingGenres = library.filter(
           (item) =>
             (!item.genreIds || item.genreIds.length === 0) &&
-            (item.isFavorite ||
-              (item.rating !== null && item.rating > 0) ||
-              item.status === 'WATCHED'),
+            hasTasteSignal(item),
         )
 
         if (missingGenres.length > 0) {
@@ -88,7 +91,8 @@ export default function ForYouPage() {
 
         const result = await getRecommendations(library, {
           mediaFilter: 'ALL',
-          limit: 36,
+          limit: 60,
+          preferredGenres: user ? readPreferredGenres(user.id) : null,
         })
 
         setItems(result.items)
@@ -108,14 +112,22 @@ export default function ForYouPage() {
     }
 
     void load()
-  }, [reloadKey])
+  }, [reloadKey, user])
 
   const topGenreLabels = useMemo(() => {
     if (!profile) return []
-    return profile.topGenres
-      .slice(0, 3)
-      .map((genre) => genreNames.get(genre.id) ?? null)
+    const ids = [
+      ...profile.topMovieGenres.slice(0, 2).map((genre) => genre.id),
+      ...profile.topTvGenres.slice(0, 2).map((genre) => genre.id),
+    ]
+    const fallback =
+      ids.length > 0
+        ? ids
+        : profile.topGenres.slice(0, 3).map((genre) => genre.id)
+    const names = fallback
+      .map((id) => genreNames.get(id) ?? null)
       .filter((name): name is string => Boolean(name))
+    return [...new Set(names)].slice(0, 3)
   }, [genreNames, profile])
 
   const visibleItems = useMemo(
@@ -162,17 +174,29 @@ export default function ForYouPage() {
     0,
     MIN_SIGNAL - (profile?.signalCount ?? 0),
   )
+  const signalHint =
+    profile && profile.signalCount > 0
+      ? remainingSignal === 1
+        ? 'Falta mais 1 título (assistindo, visto, nota ou favorito) para montar o Para você.'
+        : `Faltam mais ${remainingSignal} títulos (assistindo, visto, nota ou favorito) para montar o Para você.`
+      : 'Escolha pelo menos 3 gêneros no onboarding, ou marque títulos na lista.'
+
+  const loadedSummary = !profile?.hasEnoughSignal
+    ? 'Escolha gêneros ou avalie alguns títulos para liberar o Para você.'
+    : !genreSummary
+      ? 'Filmes e séries a partir dos seus gêneros, do que você assiste e avalia.'
+      : profile.preferredGenreCount >= MIN_SIGNAL &&
+          profile.signalCount < MIN_SIGNAL
+        ? `Montado a partir dos gêneros que você escolheu. Forte em ${genreSummary}.`
+        : `Filmes e séries a partir do que você assiste e avalia. Forte em ${genreSummary}.`
 
   const summary = isLoading
-    ? 'Lendo sua lista e notas…'
-    : profile?.hasEnoughSignal
-      ? genreSummary
-        ? `Montado a partir do que você avalia bem — forte em ${genreSummary}.`
-        : 'Montado a partir dos títulos que você avaliou e marcou como favorito.'
-      : 'Avalie alguns títulos para liberar recomendações sob medida.'
+    ? 'Lendo seus gêneros, a lista e as notas…'
+    : loadedSummary
 
   return (
     <RequireAuth>
+      <OnboardingGate />
       <div className="relative -mt-16 pb-20">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[460px] overflow-hidden">
           {featured?.media ? (
@@ -202,9 +226,20 @@ export default function ForYouPage() {
               <p className="mt-3 max-w-xl text-mute">{summary}</p>
             </div>
 
-            <Link href="/library">
-              <Button variant="ghost">Minha lista</Button>
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              {profile?.hasEnoughSignal ? (
+                <Button
+                  variant="ghost"
+                  onClick={handleRetry}
+                  disabled={isLoading}
+                >
+                  Atualizar
+                </Button>
+              ) : null}
+              <Link href="/library">
+                <Button variant="ghost">Minha lista</Button>
+              </Link>
+            </div>
           </div>
 
           <div
@@ -254,17 +289,13 @@ export default function ForYouPage() {
               <h2 className="font-display text-2xl font-semibold tracking-tight">
                 Ainda falta sinal de gosto
               </h2>
-              <p className="mt-2 text-mute">
-                {profile && profile.signalCount > 0
-                  ? `Avalie mais ${remainingSignal} ${remainingSignal === 1 ? 'título' : 'títulos'} (nota ou favorito) para montar o Para você.`
-                  : 'Avalie pelo menos 3 títulos na sua lista — nota ou favorito. Quanto mais sinal, melhor a seleção.'}
-              </p>
+              <p className="mt-2 text-mute">{signalHint}</p>
               <div className="mt-6 flex flex-wrap gap-2">
-                <Link href="/library">
-                  <Button>Ir para minha lista</Button>
+                <Link href="/onboarding">
+                  <Button>Escolher gêneros</Button>
                 </Link>
-                <Link href="/discover">
-                  <Button variant="ghost">Explorar catálogo</Button>
+                <Link href="/library">
+                  <Button variant="ghost">Ir para minha lista</Button>
                 </Link>
               </div>
             </div>
@@ -274,8 +305,8 @@ export default function ForYouPage() {
                 Nada neste filtro
               </h2>
               <p className="mt-2 text-mute">
-                Não encontramos novidades aqui. Veja Tudo ou avalie mais títulos
-                na sua lista.
+                Não encontramos novidades neste filtro. Veja Tudo ou acrescente
+                mais títulos desse tipo na sua lista.
               </p>
               {filter !== 'ALL' ? (
                 <Button
@@ -295,11 +326,9 @@ export default function ForYouPage() {
               {featured ? <FeaturedPick item={featured} /> : null}
 
               {shelves.map((shelf) => (
-                <RecommendationShelf
-                  key={shelf.title}
-                  title={shelf.title}
-                  items={shelf.items}
-                />
+                <div key={shelf.title} className="-mx-4 sm:-mx-8">
+                  <MediaRow title={shelf.title} items={shelf.items} />
+                </div>
               ))}
             </div>
           )}
@@ -360,62 +389,6 @@ const FeaturedPick = ({ item }: { item: RecommendationItem }) => {
             </p>
           ) : null}
         </div>
-      </article>
-    </Link>
-  )
-}
-
-const RecommendationShelf = ({
-  title,
-  items,
-}: {
-  title: string
-  items: TmdbMedia[]
-}) => {
-  if (items.length === 0) return null
-
-  return (
-    <section>
-      <h2 className="font-display text-xl font-semibold tracking-tight sm:text-2xl">
-        {title}
-      </h2>
-      <div className="hide-scrollbar -mx-4 mt-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:-mx-8 sm:px-8">
-        {items.map((media) => (
-          <ShelfCard key={mediaKey(media)} media={media} />
-        ))}
-      </div>
-    </section>
-  )
-}
-
-const ShelfCard = ({ media }: { media: TmdbMedia }) => {
-  const href = `/title/${media.mediaType.toLowerCase()}/${media.id}`
-  const year = formatYear(media.releaseDate)
-
-  return (
-    <Link
-      href={href}
-      className="group w-[140px] shrink-0 focus-visible:outline-none sm:w-[170px] md:w-[190px]"
-      aria-label={`Detalhes de ${media.title}`}
-      tabIndex={0}
-    >
-      <article>
-        <div className="relative aspect-[2/3] overflow-hidden rounded-md bg-surface-2 transition duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.03] group-hover:shadow-[0_16px_40px_rgba(0,0,0,0.55)]">
-          <TmdbImage
-            path={media.posterPath}
-            alt=""
-            size="w342"
-            fill
-            sizes="190px"
-          />
-        </div>
-        <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-snug group-hover:text-white">
-          {media.title}
-        </h3>
-        <p className="mt-0.5 text-[11px] text-mute">
-          {MEDIA_TYPE_LABELS[media.mediaType]}
-          {year ? ` · ${year}` : ''}
-        </p>
       </article>
     </Link>
   )

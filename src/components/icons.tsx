@@ -42,6 +42,20 @@ export const IconHeartFill = ({ className }: IconProps) => (
   </svg>
 )
 
+export const IconPlus = ({ className }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.2"
+    strokeLinecap="round"
+    aria-hidden
+    className={cn(base, className)}
+  >
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+)
+
 export const IconCheck = ({ className }: IconProps) => (
   <svg
     viewBox="0 0 24 24"
@@ -96,20 +110,6 @@ export const IconStar = ({ className }: IconProps) => (
     className={cn(base, className)}
   >
     <path d="m12 3.2 2.4 5.7 6.2.6-4.7 4.1 1.4 6-5.3-3.2-5.3 3.2 1.4-6-4.7-4.1 6.2-.6L12 3.2Z" />
-  </svg>
-)
-
-export const IconPlus = ({ className }: IconProps) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    aria-hidden
-    className={cn(base, className)}
-  >
-    <path d="M12 5v14M5 12h14" />
   </svg>
 )
 

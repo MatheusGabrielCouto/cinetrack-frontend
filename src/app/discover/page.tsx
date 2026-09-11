@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { RequireAuth } from '@/components/auth/require-auth'
+import { OnboardingGate } from '@/components/auth/onboarding-gate'
 import { FilterBar, type ContentFilter } from '@/components/media/filter-bar'
 import { HeroBanner } from '@/components/media/hero-banner'
 import { ContinueWatchingRow } from '@/components/media/continue-watching-row'
@@ -291,7 +291,8 @@ export default function DiscoverPage() {
   }, [catalog, contentFilter, selectedGenreId, selectedGenreName, sort])
 
   return (
-    <RequireAuth>
+    <>
+      <OnboardingGate />
       <div className="pb-16">
         <div
           className={cn(
@@ -339,6 +340,6 @@ export default function DiscoverPage() {
           )}
         </div>
       </div>
-    </RequireAuth>
+    </>
   )
 }

@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { RequireAuth } from '@/components/auth/require-auth'
 import { TitleLibraryProvider } from '@/components/library/title-library-context'
 import { IconPlay } from '@/components/icons'
 import { EpisodeHero } from '@/components/media/episode-hero'
@@ -68,36 +67,33 @@ export default function EpisodeDetailPage() {
     void load()
   }, [episodeNumber, isTv, seasonNumber, tvId])
 
-  return (
-    <RequireAuth>
-      {isLoading ? (
-        <EpisodeSkeleton />
-      ) : error || !show || !episode ? (
-        <div className="mx-auto max-w-[1400px] px-4 py-24 sm:px-8">
-          <p className="text-accent">{error ?? 'Episódio não encontrado'}</p>
-          <Link
-            href={Number.isNaN(tvId) ? '/discover' : `/title/tv/${tvId}#episodios`}
-            className="mt-4 inline-block text-sm font-semibold text-ink underline-offset-4 hover:underline"
-          >
-            Voltar à série
-          </Link>
-        </div>
-      ) : (
-        <TitleLibraryProvider
-          tmdbId={show.id}
-          mediaType="TV"
-          genreIds={show.genreIds ?? []}
-          seasons={show.seasons}
-        >
-          <EpisodeDetailView
-            show={show}
-            episode={episode}
-            activeTrailer={activeTrailer}
-            onPlayTrailer={setActiveTrailer}
-          />
-        </TitleLibraryProvider>
-      )}
-    </RequireAuth>
+  return isLoading ? (
+    <EpisodeSkeleton />
+  ) : error || !show || !episode ? (
+    <div className="mx-auto max-w-[1400px] px-4 py-24 sm:px-8">
+      <p className="text-accent">{error ?? 'Episódio não encontrado'}</p>
+      <Link
+        href={Number.isNaN(tvId) ? '/discover' : `/title/tv/${tvId}#episodios`}
+        className="mt-4 inline-block text-sm font-semibold text-ink underline-offset-4 hover:underline"
+      >
+        Voltar à série
+      </Link>
+    </div>
+  ) : (
+    <TitleLibraryProvider
+      tmdbId={show.id}
+      mediaType="TV"
+      genreIds={show.genreIds ?? []}
+      seasons={show.seasons}
+      releaseDate={show.releaseDate}
+    >
+      <EpisodeDetailView
+        show={show}
+        episode={episode}
+        activeTrailer={activeTrailer}
+        onPlayTrailer={setActiveTrailer}
+      />
+    </TitleLibraryProvider>
   )
 }
 

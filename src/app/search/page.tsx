@@ -2,7 +2,6 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { RequireAuth } from '@/components/auth/require-auth'
 import { CollectionCard } from '@/components/media/collection-card'
 import { MediaPoster } from '@/components/media/media-poster'
 import { Button } from '@/components/ui/button'
@@ -123,6 +122,70 @@ type SearchRequest = {
   sortBy: string
 }
 
+const parseMediaTypeParam = (value: string | null): MediaType | 'ALL' => {
+  if (value === 'MOVIE' || value === 'TV') return value
+  return 'ALL'
+}
+
+const parseRuntimeParam = (value: string | null): RuntimePreset => {
+  if (value === 'short' || value === 'medium' || value === 'long') return value
+  return ''
+}
+
+const requestFromParams = (params: URLSearchParams): SearchRequest => ({
+  query: params.get('q') ?? '',
+  mediaType: parseMediaTypeParam(params.get('type')),
+  year: params.get('year') ?? '',
+  minRating: params.get('rating') ?? '',
+  language: params.get('lang') ?? '',
+  genreId: params.get('genre') ?? '',
+  country: params.get('country') ?? '',
+  runtimePreset: parseRuntimeParam(params.get('runtime')),
+  keywordId: params.get('keyword') ?? '',
+  collectionId: params.get('collection') ?? '',
+  sortBy: params.get('sort') ?? 'popularity.desc',
+})
+
+const buildSearchQuery = (
+  request: SearchRequest,
+  names?: { keywordName?: string; collectionName?: string },
+) => {
+  const params = new URLSearchParams()
+  if (request.query.trim()) params.set('q', request.query.trim())
+  if (request.mediaType !== 'ALL') params.set('type', request.mediaType)
+  if (request.year) params.set('year', request.year)
+  if (request.minRating) params.set('rating', request.minRating)
+  if (request.language) params.set('lang', request.language)
+  if (request.genreId) params.set('genre', request.genreId)
+  if (request.country) params.set('country', request.country)
+  if (request.runtimePreset) params.set('runtime', request.runtimePreset)
+  if (request.sortBy && request.sortBy !== 'popularity.desc') {
+    params.set('sort', request.sortBy)
+  }
+  if (request.keywordId) params.set('keyword', request.keywordId)
+  if (request.collectionId) params.set('collection', request.collectionId)
+  const label = names?.collectionName || names?.keywordName
+  if (label && (request.keywordId || request.collectionId)) {
+    params.set('name', label)
+  }
+  return params.toString()
+}
+
+const hasSearchIntent = (request: SearchRequest) =>
+  Boolean(
+    request.query.trim() ||
+      request.mediaType !== 'ALL' ||
+      request.year ||
+      request.minRating ||
+      request.language ||
+      request.genreId ||
+      request.country ||
+      request.runtimePreset ||
+      request.keywordId ||
+      request.collectionId ||
+      (request.sortBy && request.sortBy !== 'popularity.desc'),
+  )
+
 const runtimeBounds = (preset: RuntimePreset) => {
   if (preset === 'short') return { min: undefined, max: 100 }
   if (preset === 'medium') return { min: 100, max: 140 }
@@ -172,6 +235,7 @@ const fetchResultPage = async (request: SearchRequest, page: number) => {
       collections: [] as TmdbCollectionSummary[],
       collection: saga,
       totalPages: 1,
+      totalResults: saga.parts.length,
       paginate: false,
     }
   }
@@ -201,6 +265,7 @@ const fetchResultPage = async (request: SearchRequest, page: number) => {
       collections: sagas,
       collection: null,
       totalPages: titles.totalPages,
+      totalResults: titles.totalResults,
       paginate: true,
     }
   }
@@ -212,6 +277,7 @@ const fetchResultPage = async (request: SearchRequest, page: number) => {
       collections: [] as TmdbCollectionSummary[],
       collection: null,
       totalPages: trend.totalPages,
+      totalResults: trend.totalResults,
       paginate: true,
     }
   }
@@ -233,6 +299,7 @@ const fetchResultPage = async (request: SearchRequest, page: number) => {
       collections: [] as TmdbCollectionSummary[],
       collection: null,
       totalPages: Math.max(movies.totalPages, series.totalPages),
+      totalResults: movies.totalResults + series.totalResults,
       paginate: true,
     }
   }
@@ -247,23 +314,22 @@ const fetchResultPage = async (request: SearchRequest, page: number) => {
     collections: [] as TmdbCollectionSummary[],
     collection: null,
     totalPages: discovered.totalPages,
+    totalResults: discovered.totalResults,
     paginate: true,
   }
 }
 
 export default function SearchPage() {
   return (
-    <RequireAuth>
-      <Suspense
-        fallback={
-          <div className="mx-auto max-w-[1400px] px-4 py-16 sm:px-8">
-            <p className="text-mute">Carregando busca…</p>
-          </div>
-        }
-      >
-        <SearchContent />
-      </Suspense>
-    </RequireAuth>
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-[1400px] px-4 py-16 sm:px-8">
+          <p className="text-mute">Carregando busca…</p>
+        </div>
+      }
+    >
+      <SearchContent />
+    </Suspense>
   )
 }
 
@@ -273,38 +339,52 @@ const SearchContent = () => {
   const keywordParam = searchParams.get('keyword') ?? ''
   const collectionParam = searchParams.get('collection') ?? ''
   const nameParam = searchParams.get('name') ?? ''
+  const initialRequest = requestFromParams(searchParams)
   const inputRef = useRef<HTMLInputElement>(null)
-  const [query, setQuery] = useState('')
-  const [mediaType, setMediaType] = useState<MediaType | 'ALL'>('ALL')
-  const [year, setYear] = useState('')
-  const [minRating, setMinRating] = useState('')
-  const [language, setLanguage] = useState('')
-  const [genreId, setGenreId] = useState('')
-  const [runtimePreset, setRuntimePreset] = useState<RuntimePreset>('')
-  const [country, setCountry] = useState('')
-  const [sortBy, setSortBy] = useState('popularity.desc')
-  const [keywordId, setKeywordId] = useState(keywordParam)
-  const [keywordName, setKeywordName] = useState(keywordParam ? nameParam : '')
-  const [collectionId, setCollectionId] = useState(collectionParam)
+  const [query, setQuery] = useState(initialRequest.query)
+  const [mediaType, setMediaType] = useState<MediaType | 'ALL'>(
+    initialRequest.mediaType,
+  )
+  const [year, setYear] = useState(initialRequest.year)
+  const [minRating, setMinRating] = useState(initialRequest.minRating)
+  const [language, setLanguage] = useState(initialRequest.language)
+  const [genreId, setGenreId] = useState(initialRequest.genreId)
+  const [runtimePreset, setRuntimePreset] = useState<RuntimePreset>(
+    initialRequest.runtimePreset,
+  )
+  const [country, setCountry] = useState(initialRequest.country)
+  const [sortBy, setSortBy] = useState(initialRequest.sortBy)
+  const [keywordId, setKeywordId] = useState(initialRequest.keywordId)
+  const [keywordName, setKeywordName] = useState(
+    initialRequest.keywordId ? nameParam : '',
+  )
+  const [collectionId, setCollectionId] = useState(initialRequest.collectionId)
   const [collectionName, setCollectionName] = useState(
-    collectionParam ? nameParam : '',
+    initialRequest.collectionId ? nameParam : '',
   )
   const [collectionOverview, setCollectionOverview] = useState('')
   const [collections, setCollections] = useState<TmdbCollectionSummary[]>([])
   const [genres, setGenres] = useState<TmdbGenre[]>([])
   const [results, setResults] = useState<TmdbMedia[]>([])
   const [trending, setTrending] = useState<TmdbMedia[]>([])
-  const [isLoading, setIsLoading] = useState(
-    Boolean(keywordParam || collectionParam),
+  const [isLoading, setIsLoading] = useState(hasSearchIntent(initialRequest))
+  const [searched, setSearched] = useState(hasSearchIntent(initialRequest))
+  const [showAdvanced, setShowAdvanced] = useState(
+    Boolean(
+      initialRequest.year ||
+        initialRequest.minRating ||
+        initialRequest.language ||
+        initialRequest.country ||
+        initialRequest.runtimePreset ||
+        initialRequest.sortBy !== 'popularity.desc',
+    ),
   )
-  const [searched, setSearched] = useState(
-    Boolean(keywordParam || collectionParam),
-  )
-  const [showAdvanced, setShowAdvanced] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [enterKey, setEnterKey] = useState(0)
   const [canPaginate, setCanPaginate] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
+  const [totalResults, setTotalResults] = useState(0)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const requestRef = useRef<SearchRequest | null>(null)
   const pageRef = useRef(1)
@@ -313,9 +393,26 @@ const SearchContent = () => {
   const loadingMoreRef = useRef(false)
   const searchIdRef = useRef(0)
   const loadMoreRef = useRef<() => void>(() => {})
+  const urlRef = useRef(
+    `/search${searchParams.toString() ? `?${searchParams.toString()}` : ''}`,
+  )
+  const skipUrlSyncRef = useRef(false)
 
   useEffect(() => {
     inputRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    const request = requestFromParams(searchParams)
+    if (!hasSearchIntent(request)) return
+    skipUrlSyncRef.current = true
+    const label = searchParams.get('name') ?? ''
+    void runSearch({
+      ...request,
+      keywordName: request.keywordId ? label : '',
+      collectionName: request.collectionId ? label : '',
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- first URL hydrate only
   }, [])
 
   useEffect(() => {
@@ -452,10 +549,25 @@ const SearchContent = () => {
     setIsLoading(true)
     setIsLoadingMore(false)
     setCanPaginate(false)
+    setLoadMoreError(null)
     setError(null)
     setSearched(true)
     setCollections([])
     setCollectionOverview('')
+    setTotalResults(0)
+
+    if (!skipUrlSyncRef.current) {
+      const qs = buildSearchQuery(request, {
+        keywordName: overrides?.keywordName ?? keywordName,
+        collectionName: overrides?.collectionName ?? collectionName,
+      })
+      const nextUrl = qs ? `/search?${qs}` : '/search'
+      if (urlRef.current !== nextUrl) {
+        urlRef.current = nextUrl
+        router.replace(nextUrl, { scroll: false })
+      }
+    }
+    skipUrlSyncRef.current = false
 
     try {
       const batch = await fetchResultPage(request, 1)
@@ -478,6 +590,7 @@ const SearchContent = () => {
 
       setResults(batch.items)
       setCollections(batch.collections)
+      setTotalResults(batch.totalResults)
       setCanPaginate(paginate)
       setEnterKey((value) => value + 1)
     } catch {
@@ -485,6 +598,7 @@ const SearchContent = () => {
       setError('Não foi possível buscar no TMDB')
       setResults([])
       setCollections([])
+      setTotalResults(0)
       setCanPaginate(false)
       canPaginateRef.current = false
     } finally {
@@ -501,6 +615,7 @@ const SearchContent = () => {
     const nextPage = pageRef.current + 1
     loadingMoreRef.current = true
     setIsLoadingMore(true)
+    setLoadMoreError(null)
 
     try {
       const batch = await fetchResultPage(request, nextPage)
@@ -512,9 +627,11 @@ const SearchContent = () => {
       canPaginateRef.current = paginate
 
       setResults((current) => mergeMedia(current, batch.items))
+      setTotalResults(batch.totalResults)
       setCanPaginate(paginate)
     } catch {
       if (searchId !== searchIdRef.current) return
+      setLoadMoreError('Não foi possível carregar mais títulos')
     } finally {
       if (searchId === searchIdRef.current) {
         loadingMoreRef.current = false
@@ -543,34 +660,34 @@ const SearchContent = () => {
   }, [canPaginate, isLoading, results.length])
 
   useEffect(() => {
-    if (collectionParam) {
-      setCollectionId(collectionParam)
-      setCollectionName(nameParam)
-      setKeywordId('')
-      setKeywordName('')
-      setQuery('')
-      void runSearch({
-        query: '',
-        collectionId: collectionParam,
-        collectionName: nameParam,
-        keywordId: '',
-        keywordName: '',
-      })
-      return
-    }
+    const current = `/search${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
+    if (current === urlRef.current) return
+    urlRef.current = current
 
-    if (!keywordParam) return
-    setKeywordId(keywordParam)
-    setKeywordName(nameParam)
-    setQuery('')
+    const request = requestFromParams(searchParams)
+    const label = searchParams.get('name') ?? ''
+    setQuery(request.query)
+    setMediaType(request.mediaType)
+    setYear(request.year)
+    setMinRating(request.minRating)
+    setLanguage(request.language)
+    setGenreId(request.genreId)
+    setCountry(request.country)
+    setRuntimePreset(request.runtimePreset)
+    setSortBy(request.sortBy)
+    setKeywordId(request.keywordId)
+    setKeywordName(request.keywordId ? label : '')
+    setCollectionId(request.collectionId)
+    setCollectionName(request.collectionId ? label : '')
+
+    if (!hasSearchIntent(request)) return
+    skipUrlSyncRef.current = true
     void runSearch({
-      query: '',
-      keywordId: keywordParam,
-      keywordName: nameParam,
-      collectionId: '',
-      collectionName: '',
+      ...request,
+      keywordName: request.keywordId ? label : '',
+      collectionName: request.collectionId ? label : '',
     })
-  }, [keywordParam, collectionParam, nameParam])
+  }, [searchParams])
 
   const handleClearKeyword = () => {
     setKeywordId('')
@@ -627,13 +744,16 @@ const SearchContent = () => {
     setShowAdvanced(false)
     setCanPaginate(false)
     setIsLoadingMore(false)
+    setLoadMoreError(null)
+    setTotalResults(0)
     requestRef.current = null
     pageRef.current = 1
     totalPagesRef.current = 1
     canPaginateRef.current = false
     loadingMoreRef.current = false
     searchIdRef.current += 1
-    if (keywordParam || collectionParam) router.replace('/search')
+    urlRef.current = '/search'
+    router.replace('/search')
     inputRef.current?.focus()
   }
 
@@ -924,9 +1044,9 @@ const SearchContent = () => {
                     type="button"
                     onClick={handleClearKeyword}
                     className="inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-xs font-medium text-ink transition hover:bg-accent/20"
-                    aria-label={`Remover filtro ${keywordName || 'Keyword'}`}
+                    aria-label={`Remover filtro ${keywordName || 'Palavra-chave'}`}
                   >
-                    {keywordName || 'Keyword'}
+                    {keywordName || 'Palavra-chave'}
                     <span aria-hidden>×</span>
                   </button>
                 ) : null}
@@ -1027,7 +1147,9 @@ const SearchContent = () => {
                       ? collectionName || 'Saga'
                       : results.length === 0
                         ? 'Nenhum resultado'
-                        : `${results.length} resultado${results.length === 1 ? '' : 's'}`}
+                        : totalResults > results.length
+                          ? `${results.length} de ${totalResults.toLocaleString('pt-BR')} resultados`
+                          : `${results.length} resultado${results.length === 1 ? '' : 's'}`}
                   </h2>
                   <p className="mt-1 text-sm text-mute">
                     {collectionId
@@ -1089,13 +1211,30 @@ const SearchContent = () => {
               {canPaginate ? (
                 <div
                   ref={sentinelRef}
-                  className="mt-10 flex min-h-16 items-center justify-center"
+                  className="mt-10 flex min-h-16 flex-col items-center justify-center gap-3"
                   aria-live="polite"
                 >
                   {isLoadingMore ? (
                     <p className="text-sm text-mute">Carregando mais…</p>
                   ) : (
-                    <span className="sr-only">Role para carregar mais resultados</span>
+                    <>
+                      {loadMoreError ? (
+                        <p className="text-sm text-accent" role="alert">
+                          {loadMoreError}
+                        </p>
+                      ) : (
+                        <span className="sr-only">
+                          Role para carregar mais resultados
+                        </span>
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => void handleLoadMore()}
+                      >
+                        Carregar mais
+                      </Button>
+                    </>
                   )}
                 </div>
               ) : null}

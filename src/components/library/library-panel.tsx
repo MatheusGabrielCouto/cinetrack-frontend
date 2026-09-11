@@ -1,7 +1,11 @@
 'use client'
 
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { IconHeart, IconHeartFill } from '@/components/icons'
+import { useAuth } from '@/components/providers/auth-provider'
+import { loginHref, registerHref } from '@/lib/auth-href'
 import {
   countWatchableEpisodes,
   formatEpisodeCode,
@@ -27,10 +31,38 @@ export const LibraryPanel = () => {
     error,
     mediaType,
     seasons,
+    hasPremiered,
     setReview,
     persist,
     remove,
   } = useTitleLibrary()
+  const { isAuthenticated } = useAuth()
+  const pathname = usePathname()
+
+  if (!isAuthenticated) {
+    return (
+      <section className="overflow-hidden rounded-xl bg-surface shadow-[0_18px_50px_rgba(0,0,0,0.4)]">
+        <div className="p-5">
+          <h2 className="font-display text-xl font-semibold tracking-tight">
+            Salve na sua lista
+          </h2>
+          <p className="mt-1 text-sm text-mute">
+            Entre para acompanhar status, nota e o próximo episódio.
+          </p>
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+            <Link href={loginHref(pathname)} className="flex-1">
+              <Button className="w-full">Entrar</Button>
+            </Link>
+            <Link href={registerHref(pathname)} className="flex-1">
+              <Button variant="ghost" className="w-full">
+                Criar conta
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   if (isLoading) {
     return (
@@ -85,13 +117,15 @@ export const LibraryPanel = () => {
             {item ? 'Na sua lista' : 'Acompanhe este título'}
           </h2>
           <p className="mt-1 text-sm text-mute">
-            {item
-              ? continueLabel && status === 'WATCHING'
-                ? `Continuar em ${continueLabel}`
-                : status === 'WATCHED'
-                  ? 'Você já terminou'
-                  : 'Na fila para assistir'
-              : 'Um toque para salvar status, nota e progresso'}
+            {!hasPremiered
+              ? 'Ainda não estreou. Dá para salvar na lista, mas não marcar como assistido.'
+              : item
+                ? continueLabel && status === 'WATCHING'
+                  ? `Continuar em ${continueLabel}`
+                  : status === 'WATCHED'
+                    ? 'Você já terminou'
+                    : 'Na fila para assistir'
+                : 'Um toque para salvar status, nota e progresso'}
           </p>
         </div>
 

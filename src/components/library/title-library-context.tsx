@@ -12,6 +12,10 @@ import {
 } from 'react'
 import { libraryApi } from '@/lib/api/cinetrack'
 import { ApiError } from '@/lib/api/client'
+import { useAuth } from '@/components/providers/auth-provider'
+import { useLibrarySnapshot } from '@/components/library/library-snapshot'
+import { currentLocationPath, loginHref } from '@/lib/auth-href'
+import { useRouter } from 'next/navigation'
 import {
   firstEpisodeAfterSeason,
   lastEpisodeOfSeason,
@@ -19,6 +23,7 @@ import {
   type SeasonRef,
 } from '@/lib/library/progress'
 import type { LibraryItem, MediaType, WatchStatus } from '@/types'
+import { isUnreleased } from '@/lib/utils'
 
 type PersistPatch = {
   status?: WatchStatus
@@ -43,6 +48,7 @@ type TitleLibraryContextValue = {
   error: string | null
   mediaType: MediaType
   seasons: SeasonRef[]
+  hasPremiered: boolean
   setReview: (value: string) => void
   persist: (patch?: PersistPatch) => Promise<void>
   markEpisodeWatched: (season: number, episode: number) => Promise<void>
@@ -59,6 +65,7 @@ type TitleLibraryProviderProps = {
   mediaType: MediaType
   genreIds: number[]
   seasons: SeasonRef[]
+  releaseDate?: string | null
   children: ReactNode
 }
 
@@ -67,8 +74,12 @@ export const TitleLibraryProvider = ({
   mediaType,
   genreIds,
   seasons,
+  releaseDate = null,
   children,
 }: TitleLibraryProviderProps) => {
+  const { isAuthenticated } = useAuth()
+  const { upsertItem, removeItem } = useLibrarySnapshot()
+  const router = useRouter()
   const [item, setItem] = useState<LibraryItem | null>(null)
   const [status, setStatus] = useState<WatchStatus>('WANT_TO_WATCH')
   const [rating, setRating] = useState<number | null>(null)
@@ -87,6 +98,7 @@ export const TitleLibraryProvider = ({
 
   const genreIdsRef = useRef(genreIds)
   const itemRef = useRef(item)
+  const hasPremiered = !isUnreleased(releaseDate)
 
   useEffect(() => {
     genreIdsRef.current = genreIds
@@ -119,6 +131,13 @@ export const TitleLibraryProvider = ({
   }, [mediaType])
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      applyItem(null)
+      setIsLoading(false)
+      setError(null)
+      return
+    }
+
     const load = async () => {
       setIsLoading(true)
       setError(null)
@@ -139,7 +158,7 @@ export const TitleLibraryProvider = ({
     }
 
     void load()
-  }, [applyItem, mediaType, tmdbId])
+  }, [applyItem, isAuthenticated, mediaType, tmdbId])
 
   useEffect(() => {
     if (!message) return
@@ -149,12 +168,25 @@ export const TitleLibraryProvider = ({
 
   const persist = useCallback(
     async (patch: PersistPatch = {}) => {
-      setIsSaving(true)
-      setError(null)
-      setMessage(null)
+      if (!isAuthenticated) {
+        router.push(loginHref(currentLocationPath()))
+        return
+      }
 
       const current = itemRef.current
       const nextStatus = patch.status ?? (current?.status ?? status)
+
+      if (
+        !hasPremiered &&
+        (nextStatus === 'WATCHING' || nextStatus === 'WATCHED')
+      ) {
+        setError('Este título ainda não estreou. Dá para salvar na lista.')
+        return
+      }
+
+      setIsSaving(true)
+      setError(null)
+      setMessage(null)
       const nextRating =
         patch.rating !== undefined ? patch.rating : (current?.rating ?? rating)
       const nextReview =
@@ -209,6 +241,7 @@ export const TitleLibraryProvider = ({
         if (current) {
           const updated = await libraryApi.update(current.id, payload)
           applyItem(updated)
+          upsertItem(updated)
           setMessage('Tracking atualizado')
         } else {
           const created = await libraryApi.create({
@@ -217,6 +250,7 @@ export const TitleLibraryProvider = ({
             ...payload,
           })
           applyItem(created)
+          upsertItem(created)
           setMessage('Adicionado à sua lista')
         }
       } catch (err) {
@@ -232,12 +266,16 @@ export const TitleLibraryProvider = ({
       applyItem,
       currentEpisode,
       currentSeason,
+      hasPremiered,
+      isAuthenticated,
       isFavorite,
       mediaType,
       rating,
       review,
+      router,
       status,
       tmdbId,
+      upsertItem,
     ],
   )
 
@@ -317,6 +355,7 @@ export const TitleLibraryProvider = ({
     try {
       await libraryApi.remove(current.id)
       applyItem(null)
+      removeItem(mediaType, tmdbId)
       setMessage('Removido da sua lista')
     } catch (err) {
       setError(
@@ -325,7 +364,7 @@ export const TitleLibraryProvider = ({
     } finally {
       setIsSaving(false)
     }
-  }, [applyItem])
+  }, [applyItem, mediaType, removeItem, tmdbId])
 
   const value = useMemo<TitleLibraryContextValue>(
     () => ({
@@ -342,6 +381,7 @@ export const TitleLibraryProvider = ({
       error,
       mediaType,
       seasons,
+      hasPremiered,
       setReview,
       persist,
       markEpisodeWatched,
@@ -355,6 +395,7 @@ export const TitleLibraryProvider = ({
       currentEpisode,
       currentSeason,
       error,
+      hasPremiered,
       isFavorite,
       isLoading,
       isSaving,

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
+import { useLibrarySnapshot } from '@/components/library/library-snapshot'
 import { RequireAuth } from '@/components/auth/require-auth'
 import {
   IconChevronLeft,
@@ -10,18 +11,24 @@ import {
 } from '@/components/icons'
 import { TmdbImage } from '@/components/media/tmdb-image'
 import { Button } from '@/components/ui/button'
+import {
+  calendarEntryKey,
+  loadCatalogReleases,
+  loadPersonalReleases,
+  type CalendarEntry,
+} from '@/lib/calendar/personal'
 import { MEDIA_TYPE_LABELS } from '@/lib/constants'
-import { tmdbApi } from '@/lib/tmdb/client'
 import { cn, formatYear } from '@/lib/utils'
-import type { MediaType, TmdbMedia } from '@/types'
+import type { MediaType } from '@/types'
 
 type DayBucket = {
   dateKey: string
   day: number
-  items: TmdbMedia[]
+  items: CalendarEntry[]
 }
 
 type ContentFilter = 'ALL' | MediaType
+type CalendarSource = 'mine' | 'catalog'
 
 const WEEKDAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
 
@@ -29,6 +36,11 @@ const FILTER_TABS: Array<{ id: ContentFilter; label: string }> = [
   { id: 'ALL', label: 'Tudo' },
   { id: 'MOVIE', label: 'Filmes' },
   { id: 'TV', label: 'Séries' },
+]
+
+const SOURCE_TABS: Array<{ id: CalendarSource; label: string }> = [
+  { id: 'mine', label: 'Sua lista' },
+  { id: 'catalog', label: 'Catálogo' },
 ]
 
 const toIsoLocal = (date: Date) => {
@@ -63,7 +75,7 @@ const shiftDay = (dateKey: string, delta: number) => {
   return toIsoLocal(date)
 }
 
-const mediaKey = (item: TmdbMedia) => `${item.mediaType}-${item.id}`
+const mediaKey = (item: CalendarEntry) => calendarEntryKey(item)
 
 const countLabel = (count: number, singular: string, plural: string) =>
   `${count} ${count === 1 ? singular : plural}`
@@ -75,8 +87,10 @@ export default function CalendarPage() {
     return new Date(now.getFullYear(), now.getMonth(), 1)
   })
   const [filter, setFilter] = useState<ContentFilter>('ALL')
+  const [source, setSource] = useState<CalendarSource>('mine')
   const [selectedDay, setSelectedDay] = useState<string | null>(todayKey)
-  const [releases, setReleases] = useState<TmdbMedia[]>([])
+  const [releases, setReleases] = useState<CalendarEntry[]>([])
+  const { items: libraryItems, isReady: libraryReady } = useLibrarySnapshot()
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [reloadKey, setReloadKey] = useState(0)
@@ -88,41 +102,17 @@ export default function CalendarPage() {
   }, [cursor])
 
   useEffect(() => {
+    if (source === 'mine' && !libraryReady) return
+
     const load = async () => {
       setIsLoading(true)
       setError(null)
 
       try {
-        const [movies, series] = await Promise.all([
-          tmdbApi.discover({
-            mediaType: 'MOVIE',
-            sortBy: 'popularity.desc',
-            primaryReleaseDateGte: range.start,
-            primaryReleaseDateLte: range.end,
-            maxPages: 5,
-          }),
-          tmdbApi.discover({
-            mediaType: 'TV',
-            sortBy: 'popularity.desc',
-            firstAirDateGte: range.start,
-            firstAirDateLte: range.end,
-            maxPages: 5,
-          }),
-        ])
-
-        const merged: TmdbMedia[] = []
-        const seen = new Set<string>()
-
-        const incoming = [...movies, ...series]
-        incoming.forEach((item) => {
-          if (!item.releaseDate) return
-          const dateKey = item.releaseDate.slice(0, 10)
-          if (dateKey < range.start || dateKey > range.end) return
-          const key = mediaKey(item)
-          if (seen.has(key)) return
-          seen.add(key)
-          merged.push(item)
-        })
+        const merged =
+          source === 'mine'
+            ? await loadPersonalReleases(libraryItems, range)
+            : await loadCatalogReleases(range)
 
         setReleases(merged)
 
@@ -148,10 +138,10 @@ export default function CalendarPage() {
     }
 
     void load()
-  }, [range.end, range.start, reloadKey, todayKey])
+  }, [libraryItems, libraryReady, range.end, range.start, reloadKey, source, todayKey])
 
   const buckets = useMemo(() => {
-    const byDay = new Map<string, TmdbMedia[]>()
+    const byDay = new Map<string, CalendarEntry[]>()
 
     releases.forEach((item) => {
       if (filter !== 'ALL' && item.mediaType !== filter) return
@@ -174,7 +164,7 @@ export default function CalendarPage() {
   }, [filter, releases])
 
   const itemsByDay = useMemo(() => {
-    const map = new Map<string, TmdbMedia[]>()
+    const map = new Map<string, CalendarEntry[]>()
     buckets.forEach((bucket) => map.set(bucket.dateKey, bucket.items))
     return map
   }, [buckets])
@@ -269,16 +259,24 @@ export default function CalendarPage() {
   }, [range.end, range.start, selectedDay])
 
   const filterSummary = isLoading
-    ? 'Carregando lançamentos…'
-    : filter === 'ALL'
-      ? `${countLabel(visibleCount, 'estreia', 'estreias')} em ${monthLong(cursor)}${
-          visibleCount > 0
-            ? ` · ${countLabel(movieCount, 'filme', 'filmes')} · ${countLabel(tvCount, 'série', 'séries')}`
-            : ''
-        }`
-      : filter === 'MOVIE'
-        ? `${countLabel(visibleCount, 'filme', 'filmes')} em ${monthLong(cursor)}`
-        : `${countLabel(visibleCount, 'série', 'séries')} em ${monthLong(cursor)}`
+    ? source === 'mine'
+      ? 'Lendo sua lista…'
+      : 'Carregando lançamentos…'
+    : source === 'mine' && visibleCount === 0
+      ? `Nada da sua lista em ${monthLong(cursor)}`
+      : filter === 'ALL'
+        ? `${countLabel(visibleCount, source === 'mine' ? 'título' : 'estreia', source === 'mine' ? 'títulos' : 'estreias')} em ${monthLong(cursor)}${
+            visibleCount > 0
+              ? ` · ${countLabel(movieCount, 'filme', 'filmes')} · ${countLabel(tvCount, 'série', 'séries')}`
+              : ''
+          }`
+        : filter === 'MOVIE'
+          ? `${countLabel(visibleCount, 'filme', 'filmes')} em ${monthLong(cursor)}`
+          : `${countLabel(visibleCount, 'série', 'séries')} em ${monthLong(cursor)}`
+
+  const handleSourceChange = (value: CalendarSource) => {
+    setSource(value)
+  }
 
   return (
     <RequireAuth>
@@ -345,8 +343,27 @@ export default function CalendarPage() {
             </div>
           </div>
 
+          <div className="mt-8 flex flex-wrap items-center gap-2">
+            {SOURCE_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => handleSourceChange(tab.id)}
+                aria-pressed={source === tab.id}
+                className={cn(
+                  'min-h-10 rounded-full border px-4 text-sm transition',
+                  source === tab.id
+                    ? 'border-accent bg-accent/15 text-ink'
+                    : 'border-line text-mute hover:border-mute hover:text-ink',
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           <div
-            className="mt-8 flex gap-5 border-b border-line"
+            className="mt-6 flex gap-5 border-b border-line"
             role="tablist"
             aria-label="Tipo de conteúdo"
           >
@@ -519,12 +536,31 @@ export default function CalendarPage() {
                   ) : selectedItems.length === 0 ? (
                     <div className="mt-6 max-w-sm">
                       <h2 className="font-display text-xl font-semibold tracking-tight">
-                        Sem estreias neste dia
+                        {source === 'mine'
+                          ? 'Nada da sua lista neste dia'
+                          : 'Sem estreias neste dia'}
                       </h2>
                       <p className="mt-2 text-sm text-mute">
-                        Escolha outra data na grade ou avance com as setas.
+                        {source === 'mine'
+                          ? 'Títulos em Quero assistir e o próximo episódio das séries que você acompanha aparecem aqui.'
+                          : 'Escolha outra data na grade ou avance com as setas.'}
                       </p>
-                      {upcomingBuckets[0] ? (
+                      {source === 'mine' ? (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <Link href="/search">
+                            <Button variant="ghost" size="sm">
+                              Buscar títulos
+                            </Button>
+                          </Link>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleSourceChange('catalog')}
+                          >
+                            Ver catálogo
+                          </Button>
+                        </div>
+                      ) : upcomingBuckets[0] ? (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -592,7 +628,7 @@ export default function CalendarPage() {
                       {bucket.items.slice(0, 3).map((item) => (
                         <li key={mediaKey(item)}>
                           <Link
-                            href={`/title/${item.mediaType.toLowerCase()}/${item.id}`}
+                            href={item.href}
                             className="group flex gap-2.5 transition duration-200 hover:opacity-90"
                             aria-label={item.title}
                             tabIndex={0}
@@ -611,7 +647,7 @@ export default function CalendarPage() {
                                 {item.title}
                               </span>
                               <span className="mt-1 block text-[11px] text-mute">
-                                {MEDIA_TYPE_LABELS[item.mediaType]}
+                                {item.episodeLabel ?? MEDIA_TYPE_LABELS[item.mediaType]}
                               </span>
                             </span>
                           </Link>
@@ -640,9 +676,15 @@ export default function CalendarPage() {
   )
 }
 
-const FeaturedReleaseCard = ({ item }: { item: TmdbMedia }) => {
-  const href = `/title/${item.mediaType.toLowerCase()}/${item.id}`
+const FeaturedReleaseCard = ({ item }: { item: CalendarEntry }) => {
+  const href = item.href
   const year = formatYear(item.releaseDate)
+  const kindLabel =
+    item.kind === 'episode'
+      ? item.episodeLabel ?? 'Próximo episódio'
+      : item.kind === 'want'
+        ? 'Quero assistir'
+        : MEDIA_TYPE_LABELS[item.mediaType]
 
   return (
     <Link
@@ -666,10 +708,14 @@ const FeaturedReleaseCard = ({ item }: { item: TmdbMedia }) => {
         <span className="flex flex-wrap items-center gap-x-2 text-[11px] text-mute">
           <span
             className={
-              item.mediaType === 'TV' ? 'text-spot' : 'text-accent'
+              item.kind === 'episode'
+                ? 'text-spot'
+                : item.mediaType === 'TV'
+                  ? 'text-spot'
+                  : 'text-accent'
             }
           >
-            {MEDIA_TYPE_LABELS[item.mediaType]}
+            {kindLabel}
           </span>
           {year ? <span>· {year}</span> : null}
           {item.voteAverage > 0 ? (
@@ -692,8 +738,14 @@ const FeaturedReleaseCard = ({ item }: { item: TmdbMedia }) => {
   )
 }
 
-const ReleaseRow = ({ item }: { item: TmdbMedia }) => {
-  const href = `/title/${item.mediaType.toLowerCase()}/${item.id}`
+const ReleaseRow = ({ item }: { item: CalendarEntry }) => {
+  const href = item.href
+  const kindLabel =
+    item.kind === 'episode'
+      ? item.episodeLabel ?? 'Próximo episódio'
+      : item.kind === 'want'
+        ? 'Quero assistir'
+        : MEDIA_TYPE_LABELS[item.mediaType]
 
   return (
     <Link
@@ -714,9 +766,9 @@ const ReleaseRow = ({ item }: { item: TmdbMedia }) => {
       <span className="min-w-0 flex-1 pr-2">
         <span className="flex flex-wrap items-center gap-x-2 text-[11px] text-mute">
           <span
-            className={item.mediaType === 'TV' ? 'text-spot' : 'text-accent'}
+            className={item.kind === 'episode' || item.mediaType === 'TV' ? 'text-spot' : 'text-accent'}
           >
-            {MEDIA_TYPE_LABELS[item.mediaType]}
+            {kindLabel}
           </span>
           {item.voteAverage > 0 ? (
             <span className="inline-flex items-center gap-0.5 text-spot">
